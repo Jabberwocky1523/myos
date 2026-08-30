@@ -1,0 +1,119 @@
+id: kernel/lock
+module: kernel/lock
+purpose: 用原子交换和中断关闭保护内核共享状态。
+owns:
+  - src/kernel/lock/spinlock.c
+  - src/kernel/lock/method.h
+  - src/kernel/lock/type.h
+functions:
+  - name: push_off
+    comment:
+      purpose: 带层数叠加的关中断。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 带层数叠加的关中断。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: pop_off
+    comment:
+      purpose: 带层数叠加的开中断。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 带层数叠加的开中断。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: spinlock_init
+    comment:
+      purpose: 自选锁初始化。
+      input:
+        - lk（spinlock_t *）：待操作的锁对象。
+        - name（char *）：目标名称字符串。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 自选锁初始化。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: spinlock_holding
+    comment:
+      purpose: 是否持有自旋锁。
+      input:
+        - lk（spinlock_t *）：待操作的锁对象。
+      output: 返回布尔值，表示源码所检查的条件或操作结果是否成立。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 是否持有自旋锁。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: spinlock_acquire
+    comment:
+      purpose: 获取自选锁。
+      input:
+        - lk（spinlock_t *）：待操作的锁对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 获取自选锁。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: spinlock_release
+    comment:
+      purpose: 释放自旋锁。
+      input:
+        - lk（spinlock_t *）：待操作的锁对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放自旋锁。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+interface:
+  - name: acquire
+    pre:
+      - 锁对象已初始化
+    post:
+      - 调用者独占锁
+    errors:
+      - 递归获取或非法锁对象属于未定义输入
+  - name: release
+    pre:
+      - 调用者持有锁
+    post:
+      - 锁可被其他执行流获取并恢复中断状态
+    errors:
+      - 非持有者释放必须被拒绝或诊断
+properties:
+  - id: interrupt-preservation
+    text: 获取锁前保存中断使能状态，释放锁后恢复原状态。
+state:
+  stage: kernel-runtime
+  owned_state:
+    - 锁字、锁名称、中断嵌套计数
+  resource_lifetime:
+    - 锁对象由静态或调用者生命周期管理
+preconditions:
+  - RISC-V原子指令可用
+postconditions:
+  - 临界区互斥成立
+invariants:
+  - 共享打印状态不得在未持锁时修改
+dependencies:
+  - kernel/boot
+rely:
+  - 单核或硬件原子操作
+guarantee:
+  - 为printf及后续并发模块提供互斥
+algorithm_intent: push_off后使用原子交换自旋，pop_off恢复调用者中断状态。
