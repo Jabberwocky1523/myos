@@ -1,0 +1,29 @@
+system:
+  name: xv6实验系统-Lab6
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证多进程调度、睡眠唤醒和进程系统调用
+kernel:
+  organization: 单体式教学内核
+  execution: scheduler在RUNNABLE进程间切换并由时钟抢占
+  protection: 每进程内核栈和用户页表
+  communication: sleep/wakeup和进程系统调用
+  resource_model: proc状态机管理父子关系和资源回收
+required_mechanisms:
+  - 进程表、上下文切换、scheduler、yield、sleep/wakeup、exit/wait/fork、sleep lock、timer_wait
+composition_invariants:
+  - proc锁保护状态转换
+  - sleep释放外锁与睡眠原子化
+  - ZOMBIE只能由父进程回收
+non_goals:
+  - 块设备和文件层系统调用
+hardware_port:
+  board: QEMU virt
+  boot: 多进程内核栈
+  console: 用户测试输出
+  interrupt: CLINT时钟驱动抢占
