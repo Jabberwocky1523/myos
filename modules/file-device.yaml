@@ -1,0 +1,314 @@
+id: kernel/file-device
+module: kernel/file-device
+purpose: 提供文件描述符、目录操作和设备文件的统一访问接口。
+owns:
+  - src/kernel/fs/device.c
+  - src/kernel/lib/console.c
+functions:
+  - name: device_stdin_read
+    comment:
+      purpose: 标准输入设备。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（uint64）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 标准输入设备。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_stdout_write
+    comment:
+      purpose: 标准输出设备。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 标准输出设备。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_stderr_write
+    comment:
+      purpose: 标准错误输出设备。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 标准错误输出设备。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_zero_read
+    comment:
+      purpose: 无限0流。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（uint64）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 无限0流。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_null_read
+    comment:
+      purpose: 空设备读取。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（uint64）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 空设备读取。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_null_write
+    comment:
+      purpose: 空设备写入。
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 空设备写入。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_gpt0_write
+    comment:
+      purpose: '彩蛋: 笨蛋GPT。'
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '彩蛋: 笨蛋GPT。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_register
+    comment:
+      purpose: 注册设备。
+      input:
+        - index（uint32）：device_register使用的index参数。
+        - name（char *）：目标名称字符串。
+        - read（uint32 (*)(uint32, uint64, bool)）：device_register使用的read参数。
+        - write（uint32 (*)(uint32, uint64, bool)）：device_register使用的write参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 注册设备。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_init
+    comment:
+      purpose: 初始化device_table。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 初始化device_table。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: device_open_check
+    comment:
+      purpose: 检查文件major字段的合法性。
+      input:
+        - major（uint16）：device_open_check使用的major参数。
+        - open_mode（uint32）：device_open_check使用的open_mode参数。
+      output: 返回布尔值，表示源码所检查的条件或操作结果是否成立。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 检查文件major字段的合法性。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_read_data
+    comment:
+      purpose: 从设备文件中读取数据。
+      input:
+        - major（uint16）：device_read_data使用的major参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（uint64）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 从设备文件中读取数据。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: device_write_data
+    comment:
+      purpose: 向设备文件写入数据。
+      input:
+        - major（uint16）：device_write_data使用的major参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 向设备文件写入数据。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: cons_init
+    comment:
+      purpose: 初始化，实现cons_init对应的模块行为。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 初始化，实现cons_init对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: cons_putc
+    comment:
+      purpose: 归还，实现cons_putc对应的模块行为。
+      input:
+        - c（int）：cons_putc使用的c参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 归还，实现cons_putc对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: cons_write
+    comment:
+      purpose: '数据输出: src -> UART。'
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（uint64）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '数据输出: src -> UART。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: cons_read
+    comment:
+      purpose: '数据读取: cons.buf -> dst。'
+      input:
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（uint64）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '数据读取: cons.buf -> dst。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: cons_edit
+    comment:
+      purpose: '数据输入: UART -> cons.buf。'
+      input:
+        - c（int）：cons_edit使用的c参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '数据输入: UART -> cons.buf。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: file_open/file_close/file_dup
+    pre:
+      - 当前进程和路径/权限合法
+    post:
+      - 文件对象和descriptor引用计数保持平衡
+    errors:
+      - 失败路径关闭已分配对象
+  - name: file_read/file_write
+    pre:
+      - fd属于当前进程且对象类型支持操作
+    post:
+      - 按DATA/DIR/DEVICE类型分发并更新offset
+    errors:
+      - 非法fd、权限或设备major返回失败
+  - name: device_read_data/device_write_data
+    pre:
+      - inode类型为DEVICE且major已注册
+    post:
+      - 调用对应设备实现
+    errors:
+      - 未知major拒绝访问
+properties:
+  - id: fd-ownership
+    text: 每个进程槽位持有一个file引用，fork/dup/close分别增减引用。
+  - id: line-console
+    text: console使用输入缓冲和编辑操作，再交给read/write。
+state:
+  stage: file-management
+  owned_state:
+    - file table、进程open_file数组、cwd、device registry
+  resource_lifetime:
+    - 最后一个file引用关闭后释放inode引用
+preconditions:
+  - inode/dentry/fs和进程模块已完成
+postconditions:
+  - 用户程序可通过fd访问普通文件、目录和设备
+invariants:
+  - id: fd-balance
+    text: 每次file_dup或fork继承必须有对应file_close。
+  - id: device-major-bound
+    text: major索引在设备表范围内。
+dependencies:
+  - kernel/inode
+  - kernel/dentry-fs
+  - kernel/process
+  - kernel/uvm
+  - kernel/syscall
+rely:
+  - 设备major约定和文件类型编码
+guarantee:
+  - 提供统一的read/write系统调用后端
+algorithm_intent: 用引用计数file对象桥接进程fd槽位和inode/设备后端。
+concurrency:
+  module:
+    module: kernel/file-device
+    shared_state:
+      - file table、console buffer
+    lock_types:
+      - spinlock
+      - sleeplock
+    lock_order:
+      - console锁后不嵌套其他锁
+    atomic_sections:
+      - fd引用更新
+    interrupt_rules:
+      - UART输入在中断上下文只入缓冲
+    rely:
+      - 进程调度
+    guarantee:
+      - fd生命周期不泄漏
+    wait_wakeup_rules:
+      - console读取者等待输入
+    forbidden_patterns:
+      - 未知设备major直接索引

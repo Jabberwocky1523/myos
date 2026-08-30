@@ -1,0 +1,323 @@
+id: kernel/uvm
+module: kernel/uvm
+purpose: 管理用户堆、栈、mmap区域并提供经过验证的用户内存访问。
+owns:
+  - src/kernel/mem/uvm.c
+  - src/kernel/mem/mmap.c
+functions:
+  - name: uvm_copyin
+    comment:
+      purpose: '用户态地址空间[src, src+len) 拷贝至 内核态地址空间[dst, dst+len)；注意: src dst 不一定是 page-aligned。'
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - dst（uint64）：目标数据或目标地址。
+        - src（uint64）：源数据或源地址。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '用户态地址空间[src, src+len) 拷贝至 内核态地址空间[dst, dst+len)；注意: src dst 不一定是 page-aligned。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: uvm_copyout
+    comment:
+      purpose: '内核态地址空间[src, src+len） 拷贝至 用户态地址空间[dst, dst+len)；注意: src dst 不一定是 page-aligned。'
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - dst（uint64）：目标数据或目标地址。
+        - src（uint64）：源数据或源地址。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '内核态地址空间[src, src+len） 拷贝至 用户态地址空间[dst, dst+len)；注意: src dst 不一定是 page-aligned。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: uvm_copyin_str
+    comment:
+      purpose: '用户态字符串拷贝到内核态；最多拷贝maxlen字节, 中途遇到''\0''则终止；注意: src dst 不一定是 page-aligned。'
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - dst（uint64）：目标数据或目标地址。
+        - src（uint64）：源数据或源地址。
+        - maxlen（uint32）：操作数量或长度。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '用户态字符串拷贝到内核态；最多拷贝maxlen字节, 中途遇到''\0''则终止；注意: src dst 不一定是 page-aligned。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: uvm_show_mmaplist
+    comment:
+      purpose: 打印以mmap为首的mmap链；for debug。
+      input:
+        - mmap（mmap_region_t *）：uvm_show_mmaplist使用的mmap参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 打印以mmap为首的mmap链；for debug。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: mmap_merge
+    comment:
+      purpose: '两个 mmap_region 区域合并；注意: 保留一个 释放一个 不操作 next 指针；由uvm_mmap调用。'
+      input:
+        - mmap_1（mmap_region_t *）：mmap_merge使用的mmap_1参数。
+        - mmap_2（mmap_region_t *）：mmap_merge使用的mmap_2参数。
+        - keep_mmap_1（bool）：mmap_merge使用的keep_mmap_1参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '两个 mmap_region 区域合并；注意: 保留一个 释放一个 不操作 next 指针；由uvm_mmap调用。'
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: uvm_mmap_find
+    comment:
+      purpose: 寻找一块足够大的区域(len), 作为 mmap_region；由uvm_mmap调用(处理begin==0的情况)；成功返回begin, 失败返回0。
+      input:
+        - head_mmap（mmap_region_t *）：uvm_mmap_find使用的head_mmap参数。
+        - len（uint64）：操作长度（单位由函数上下文决定）。
+        - p_last_mmap（mmap_region_t **）：uvm_mmap_find使用的p_last_mmap参数。
+        - p_tmp_mmap（mmap_region_t **）：uvm_mmap_find使用的p_tmp_mmap参数。
+      output: 成功返回begin, 失败返回0。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 寻找一块足够大的区域(len), 作为 mmap_region；由uvm_mmap调用(处理begin==0的情况)；成功返回begin, 失败返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uvm_mmap
+    comment:
+      purpose: '在用户页表和进程mmap链里新增mmap区域 [begin, begin + npages * PGSIZE)；调用者保证begin是page-aligned的, 页面权限为perm；注意: 如果start==0,
+        意味着需要内核自主找一块足够大的空间；失败则panic卡死。'
+      input:
+        - begin（uint64）：uvm_mmap使用的begin参数。
+        - npages（uint32）：操作数量或长度。
+        - perm（int）：uvm_mmap使用的perm参数。
+      output: 返回uint64类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '在用户页表和进程mmap链里新增mmap区域 [begin, begin + npages * PGSIZE)；调用者保证begin是page-aligned的, 页面权限为perm；注意: 如果start==0, 意味着需要内核自主找一块足够大的空间；失败则panic卡死。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: uvm_munmap
+    comment:
+      purpose: 在用户页表和进程mmap链里释放mmap区域 [begin, begin + npages * PGSIZE)；失败则panic卡死。
+      input:
+        - begin（uint64）：uvm_munmap使用的begin参数。
+        - npages（uint32）：操作数量或长度。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 在用户页表和进程mmap链里释放mmap区域 [begin, begin + npages * PGSIZE)；失败则panic卡死。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: uvm_heap_grow
+    comment:
+      purpose: 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - cur_heap_top（uint64）：uvm_heap_grow使用的cur_heap_top参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - flag（int）：uvm_heap_grow使用的flag参数。
+      output: 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uvm_heap_ungrow
+    comment:
+      purpose: 用户堆空间减少, 返回新的堆顶地址。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - cur_heap_top（uint64）：uvm_heap_ungrow使用的cur_heap_top参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 用户堆空间减少, 返回新的堆顶地址。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 用户堆空间减少, 返回新的堆顶地址。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uvm_ustack_grow
+    comment:
+      purpose: 处理函数栈增长导致的page fault事件；成功返回new_ustack_npage，失败返回-1。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - old_ustack_npage（uint64）：目标页面或页面数量。
+        - fault_addr（uint64）：目标地址。
+      output: 成功返回new_ustack_npage，失败返回-1。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 处理函数栈增长导致的page fault事件；成功返回new_ustack_npage，失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: destroy_pgtbl
+    comment:
+      purpose: '递归释放 页表占用的物理页 和 页表管理的物理页；ps: 顶级页表level = 3。'
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - level（uint32）：destroy_pgtbl使用的level参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '递归释放 页表占用的物理页 和 页表管理的物理页；ps: 顶级页表level = 3。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uvm_destroy_pgtbl
+    comment:
+      purpose: 页表销毁。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 页表销毁。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: copy_range
+    comment:
+      purpose: 连续虚拟空间的复制；在uvm_copy_pgtbl中使用。
+      input:
+        - old（pgtbl_t）：需要保存的旧上下文。
+        - new（pgtbl_t）：需要恢复的新上下文。
+        - begin（uint64）：copy_range使用的begin参数。
+        - end（uint64）：操作区间的结束地址。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 连续虚拟空间的复制；在uvm_copy_pgtbl中使用。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: uvm_copy_pgtbl
+    comment:
+      purpose: 拷贝页表 (拷贝并不包括 trapframe 和 trampoline)；拷贝的页表管理的物理页是原来页表的复制品。
+      input:
+        - old（pgtbl_t）：需要保存的旧上下文。
+        - new（pgtbl_t）：需要恢复的新上下文。
+        - heap_top（uint64）：uvm_copy_pgtbl使用的heap_top参数。
+        - ustack_npage（uint64）：目标页面或页面数量。
+        - mmap（mmap_region_t *）：uvm_copy_pgtbl使用的mmap参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 拷贝页表 (拷贝并不包括 trapframe 和 trampoline)；拷贝的页表管理的物理页是原来页表的复制品。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: mmap_init
+    comment:
+      purpose: 初始化上述三个数据结构。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 初始化上述三个数据结构。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: mmap_region_alloc
+    comment:
+      purpose: 从仓库申请一个 mmap_region_t；若仓库空了则 panic。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回mmap_region_t *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 从仓库申请一个 mmap_region_t；若仓库空了则 panic。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: mmap_region_free
+    comment:
+      purpose: 向仓库归还一个 mmap_region_t。
+      input:
+        - mmap（mmap_region_t *）：mmap_region_free使用的mmap参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 向仓库归还一个 mmap_region_t。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: mmap_show_nodelist
+    comment:
+      purpose: 输出可用的 mmap_region_node_t 链；for debug。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 输出可用的 mmap_region_node_t 链；for debug。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: uvm_copyin
+    pre:
+      - 用户页表和源范围属于当前进程
+    post:
+      - 逐页复制到内核缓冲区
+    errors:
+      - 未映射、越界或无权限返回失败
+  - name: uvm_heap_grow
+    pre:
+      - 新heap_top不超过MMAP_BEGIN
+    post:
+      - 新增页具有用户RW权限
+    errors:
+      - 中途失败回滚已分配页
+  - name: mmap/munmap
+    pre:
+      - 区间合法且不冲突
+    post:
+      - mmap链表和页表同步更新
+    errors:
+      - 冲突或非法长度拒绝操作
+properties:
+  - id: page-boundary-copy
+    text: copyin/copyout跨页逐页验证。
+  - id: stack-growth
+    text: 缺页地址在栈底下方时按页向低地址扩展。
+  - id: mmap-list
+    text: mmap节点按区间维护并在munmap后释放资源。
+state:
+  stage: user-address-space
+  owned_state:
+    - heap_top、ustack_npage、mmap链表、用户页表
+  resource_lifetime:
+    - 解除映射时释放物理页和节点
+preconditions:
+  - Lab4用户trap和物理页分配器可用
+postconditions:
+  - 用户程序可安全访问堆、栈和映射区
+invariants:
+  - id: validated-user-access
+    text: 内核不直接解引用未经页表验证的用户地址。
+  - id: no-region-overlap
+    text: heap、stack和mmap区间不重叠。
+dependencies:
+  - kernel/memory
+  - kernel/usertrap
+  - kernel/process
+rely:
+  - 用户页表PTE权限和MAXVA布局
+guarantee:
+  - 向syscall提供安全的参数搬运
+algorithm_intent: 逐页walk，失败回滚；mmap用链表记录区间并按需建立映射。

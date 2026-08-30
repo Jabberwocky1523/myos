@@ -1,0 +1,113 @@
+id: lab9-file-management-integration
+transition: lab8 -> lab9
+reason: 最后一阶段把文件、设备、目录、ELF执行、系统调用和用户测试整合为完整系统。
+changes:
+- kernel/file-device
+- kernel/exec-integration
+- kernel/inode
+- kernel/dentry-fs
+- kernel/process
+- kernel/syscall
+- kernel/uvm
+- toolchain
+required_updates:
+- target: uvm_heap_grow、sys_brk
+  module: kernel/uvm
+  change: 为uvm_heap_grow增加页面权限参数；brk传入可读写权限，ELF加载可传入可执行权限。
+  reason: 普通用户堆与ELF代码段需要不同的页表权限。
+- target: __path_to_inode
+  module: kernel/dentry-fs
+  change: 相对路径从当前进程cwd开始解析，并支持点目录与父目录语义。
+  reason: 文件系统从只支持绝对路径扩展为进程相关的目录命名空间。
+- target: inode_read_data、inode_write_data
+  module: kernel/inode
+  change: 根据用户地址标志改用uvm_copyout或uvm_copyin，不再直接memmove用户指针。
+  reason: 文件系统不能在内核页表下直接解引用用户虚拟地址。
+- target: fs_init
+  module: kernel/file-device
+  change: 在inode和超级块就绪后初始化file对象池与设备表，并移除前序实验的内核内置测试入口。
+  reason: Lab9改由用户程序通过文件描述符和设备文件验证完整系统。
+- target: proc_init、proc_return、proc_fork、proc_free
+  module: kernel/process
+  change: 加入open_file数组和cwd的初始化、继承、引用计数与释放，并为首个进程建立标准输入输出。
+  reason: 文件描述符和当前目录都是进程资源，必须跟随进程生命周期管理。
+- target: print_init、uart_intr
+  module: kernel/console
+  change: 初始化行缓冲console，并将UART接收字符交给console编辑逻辑。
+  reason: 用户程序需要稳定的行输入、回显和控制字符处理。
+- target: mkfs main、inode_append
+  module: kernel/exec-integration
+  change: 支持从命令行加入用户ELF，并在文件超过直接块容量时建立间接索引。
+  reason: Lab9用户程序镜像可能超过Lab8仅直接块写入的容量。
+- target: proc_t
+  module: kernel/process
+  change: 在进程结构中加入固定大小的open_file表和cwd引用，并保证其初始化、fork继承与最终释放和现有生命周期状态同时提交。
+  reason: 只修改生命周期函数而不扩展进程数据结构无法保存文件描述符和当前目录所有权。
+- target: syscall、syscall_num、用户syscall封装
+  module: kernel/syscall
+  change: 将调用号统一为brk到unlink的完整ABI，更新内核分发表、参数提取声明和用户侧封装，使exec及文件操作使用相同编号和签名。
+  reason: 文件与exec函数已经实现后仍需稳定的用户—内核接线；任一侧编号漂移都会调用错误处理函数。
+- target: Makefile、common.mk、kernel.ld、user.ld
+  module: toolchain
+  change: 把内核链接脚本迁入loader目录，引入用户ELF链接脚本，分别编译链接用户程序，并把生成的ELF路径传给mkfs写入disk.img后再启动QEMU。
+  reason: exec只能加载具有预期用户虚拟地址布局且已进入文件系统镜像的ELF程序。
+new_invariants:
+- fd引用必须在fork/dup/close间平衡
+- exec只发布完整新地址空间
+- 用户文件访问不能绕过copyin/copyout
+- 用户ELF的段地址、权限和入口必须符合user.ld约定
+- 用户调用号、内核分发表和用户封装必须保持同一ABI版本
+- 写入disk.img的用户ELF必须来自当前构建而非旧产物
+verification:
+- id: exec-console-io
+  entry: initcode -> test_1
+  setup:
+  - 让initcode的path和argv选择./test_1，重新构建disk.img。
+  steps:
+  - fork子进程并exec test_1。
+  - 输入一行文本，检查stdout和stderr输出。
+  - 检查argc和每个argv。
+  expected:
+  - exec成功后参数数量和内容与initcode一致。
+  - 输入行被stdout原样回显，stderr带错误输出语义。
+  - 测试进程以0退出，父进程wait后报告成功。
+- id: regular-file-and-directory-io
+  entry: initcode -> test_2
+  setup:
+  - 让initcode执行./test_2并使用包含用户ELF的最新disk.img。
+  steps:
+  - 打开根目录并执行dup、fstat和close。
+  - 创建/ABC.txt，重复写入后lseek并读取50字节。
+  - 通过get_dentries读取根目录项。
+  expected:
+  - 复制fd共享同一file引用且关闭副本不影响原fd。
+  - fstat大小、类型、inode号和offset与实际操作一致。
+  - 读取长度为50且内容来自已写入数据；根目录列出ABC.txt。
+  - 进程退出状态为0。
+- id: cwd-link-unlink
+  entry: initcode -> test_3
+  setup:
+  - 让initcode执行./test_3。
+  steps:
+  - 创建并切换多级相对目录，连续打印cwd。
+  - 创建hello.txt并建立/link.txt硬链接。
+  - 经另一条路径写入后从原文件读取。
+  - 逐级unlink文件和目录并再次列出根目录。
+  expected:
+  - cwd按相对路径和点目录规则解析为正确绝对路径。
+  - 两个路径访问同一inode，写入一侧可从另一侧读出hello world。
+  - nlink随link/unlink平衡，清理后临时目录和链接从根目录消失。
+  - 进程退出状态为0。
+- id: device-files
+  entry: initcode -> test_4
+  setup:
+  - 让initcode执行./test_4；控制台允许交互输入。
+  steps:
+  - 列出/dev并切换到该目录。
+  - 读取/dev/zero，读写/dev/null。
+  - 向/dev/gpt0连续输入4个问题。
+  expected:
+  - /dev包含stdin、stdout、stderr、zero、null和gpt0。
+  - /dev/zero返回请求长度且所有整数为0。
+  - /dev/null写入返回请求长度、读取返回0。
+  - gpt0对每个问题产生响应且测试进程以0退出。

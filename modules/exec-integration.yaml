@@ -1,0 +1,205 @@
+id: kernel/exec-integration
+module: kernel/exec-integration
+purpose: 将磁盘ELF文件装载为新的用户地址空间并完成最终系统整合。
+owns:
+  - src/kernel/proc/exec.c
+  - src/loader/user.ld
+  - src/user/syscall.c
+  - src/user/help.c
+functions:
+  - name: load_segment
+    comment:
+      purpose: '将ELF文件中的segment放入内存中制定位置；inode逻辑区域: [seg_start, seg_start + len)；进程地址空间: [va_start, va_start + len), 对应的物理页是存在的。'
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - seg_start（uint64）：load_segment使用的seg_start参数。
+        - va_start（uint64）：load_segment使用的va_start参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '将ELF文件中的segment放入内存中制定位置；inode逻辑区域: [seg_start, seg_start + len)；进程地址空间: [va_start, va_start + len), 对应的物理页是存在的。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 源码断言不成立时触发assert诊断。
+  - name: prepare_heap
+    comment:
+      purpose: 将程序的代码区和数据区读入用户堆中, 返回new_heap_top。
+      input:
+        - new_pgtbl（pgtbl_t）：prepare_heap使用的new_pgtbl参数。
+        - ip（inode_t *）：待操作的inode对象。
+        - eh（elf_header_t *）：prepare_heap使用的eh参数。
+      output: 将程序的代码区和数据区读入用户堆中, 返回new_heap_top。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 将程序的代码区和数据区读入用户堆中, 返回new_heap_top。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: prepare_stack
+    comment:
+      purpose: 准备栈空间用于存储输入参数(4KB), 设置arg_count, 返回sp。
+      input:
+        - new_pgtbl（pgtbl_t）：prepare_stack使用的new_pgtbl参数。
+        - argv（char **）：参数字符串数组。
+        - arg_count（int *）：操作数量或长度。
+      output: 准备栈空间用于存储输入参数(4KB), 设置arg_count, 返回sp。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 准备栈空间用于存储输入参数(4KB), 设置arg_count, 返回sp。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: proc_exec
+    comment:
+      purpose: 执行ELF文件；输入路径和参数；成功返回argc, 失败返回-1。
+      input:
+        - path（char *）：目标路径字符串。
+        - argv（char **）：参数字符串数组。
+      output: 成功返回argc, 失败返回-1。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 执行ELF文件；输入路径和参数；成功返回argc, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: memcpy
+    comment:
+      purpose: 实现memcpy在当前模块中的代码行为。
+      input:
+        - dst（void *）：目标数据或目标地址。
+        - src（const void *）：源数据或源地址。
+        - n（uint32）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 返回void *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现memcpy在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: stdin
+    comment:
+      purpose: 实现stdin在当前模块中的代码行为。
+      input:
+        - str（char *）：stdin使用的str参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现stdin在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: stdout
+    comment:
+      purpose: 实现stdout在当前模块中的代码行为。
+      input:
+        - str（char *）：stdout使用的str参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现stdout在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: stderr
+    comment:
+      purpose: 实现stderr在当前模块中的代码行为。
+      input:
+        - str（char *）：stderr使用的str参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现stderr在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: fprintf
+    comment:
+      purpose: 输出，实现fprintf对应的模块行为。
+      input:
+        - fd（uint32）：文件描述符。
+        - fmt（const char *）：fprintf使用的fmt参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现fprintf对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: print_fstat
+    comment:
+      purpose: 输出，实现print_fstat对应的模块行为。
+      input:
+        - stat（file_stat_t *）：print_fstat使用的stat参数。
+        - filename（char *）：操作数量或长度。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现print_fstat对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: print_dentries
+    comment:
+      purpose: 输出，实现print_dentries对应的模块行为。
+      input:
+        - de（dentry_t *）：print_dentries使用的de参数。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - filename（char *）：操作数量或长度。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现print_dentries对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: proc_exec
+    pre:
+      - 路径可解析、ELF header合法、用户参数有界
+    post:
+      - 新页表、trapframe、heap、stack和入口完整后原子替换旧地址空间
+    errors:
+      - 任一步失败释放新资源并保留旧地址空间
+  - name: device_init
+    pre:
+      - 文件系统根目录存在
+    post:
+      - 设备注册和/dev节点可用
+    errors:
+      - 设备节点创建失败停止初始化
+properties:
+  - id: exec-publication
+    text: 新地址空间完全建立后才更新进程公开状态。
+  - id: mkfs-reproducible
+    text: mkfs参数和间接块布局必须与用户ELF大小匹配。
+state:
+  stage: system-integration
+  owned_state:
+    - exec临时页表、trapframe、用户栈、ELF段、mkfs镜像
+  resource_lifetime:
+    - exec成功释放旧地址空间，失败释放全部临时资源
+preconditions:
+  - Lab8文件系统、Lab5用户VM和Lab6进程生命周期可用
+invariants:
+  - id: atomic-exec
+    text: exec失败不能暴露半构造地址空间。
+  - id: user-copy
+    text: inode读写用户缓冲区必须使用uvm_copyin/uvm_copyout。
+dependencies:
+  - kernel/file-device
+  - kernel/inode
+  - kernel/uvm
+  - kernel/process
+  - kernel/syscall
+rely:
+  - ELF格式、loader链接脚本和mkfs磁盘布局
+guarantee:
+  - 完成从启动到用户文件操作的闭环
+algorithm_intent: 解析ELF段、准备heap/stack/argv，成功后一次性发布新进程映像。

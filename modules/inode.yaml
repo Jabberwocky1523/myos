@@ -1,0 +1,254 @@
+id: kernel/inode
+module: kernel/inode
+purpose: 将文件逻辑块映射到磁盘块并管理内存inode生命周期。
+owns:
+  - src/kernel/fs/inode.c
+functions:
+  - name: __free_data_blocks
+    comment:
+      purpose: 供free_data_blocks使用；递归删除inode->index中的一个元素；返回删除过程中是否遇到空的block_num (文件末尾)。
+      input:
+        - block_num（uint32）：待操作的锁对象。
+        - level（uint32）：__free_data_blocks使用的level参数。
+      output: 返回删除过程中是否遇到空的block_num (文件末尾)。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 供free_data_blocks使用；递归删除inode->index中的一个元素；返回删除过程中是否遇到空的block_num (文件末尾)。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: free_data_blocks
+    comment:
+      purpose: 释放inode管理的blocks。
+      input:
+        - inode_index（uint32 *）：待操作的inode对象或编号。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放inode管理的blocks。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: locate_or_add_block
+    comment:
+      purpose: 获取inode第logical_block_num个block的物理序号block_num；调用者保证输入的logical_block_num只有两种情况:；1. 属于已经分配的区域 (返回block_num)；2.
+        将已经分配出去的区域往外扩展1个block (申请block并返回block_num)；成功返回block_num, 失败返回-1。
+      input:
+        - inode_index（uint32 *）：待操作的inode对象或编号。
+        - logical_block_num（uint32）：待操作的锁对象。
+      output: 1. 属于已经分配的区域 (返回block_num)；2. 将已经分配出去的区域往外扩展1个block (申请block并返回block_num)；成功返回block_num, 失败返回-1。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 获取inode第logical_block_num个block的物理序号block_num；调用者保证输入的logical_block_num只有两种情况:；1. 属于已经分配的区域 (返回block_num)；2. 将已经分配出去的区域往外扩展1个block
+        (申请block并返回block_num)；成功返回block_num, 失败返回-1。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: inode_get
+    comment:
+      purpose: '尝试在inode_cache里寻找是否存在目标inode；如果不存在则申请一个空闲的inode；如果没有空闲位置直接panic；核心逻辑: ref++。'
+      input:
+        - inode_num（uint32）：目标inode编号。
+      output: 返回inode_t *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '尝试在inode_cache里寻找是否存在目标inode；如果不存在则申请一个空闲的inode；如果没有空闲位置直接panic；核心逻辑: ref++。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: inode_create
+    comment:
+      purpose: '在磁盘里创建1个新的inode；1. 查询和修改inode_bitmap；2. 填充inode_region对应位置的inode；注意: 返回的inode未上锁。'
+      input:
+        - type（uint16）：对象类型或操作类型。
+        - major（uint16）：inode_create使用的major参数。
+        - minor（uint16）：inode_create使用的minor参数。
+      output: '注意: 返回的inode未上锁。'
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '在磁盘里创建1个新的inode；1. 查询和修改inode_bitmap；2. 填充inode_region对应位置的inode；注意: 返回的inode未上锁。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_dup
+    comment:
+      purpose: 实现inode_dup在当前模块中的代码行为。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 返回inode_t *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现inode_dup在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_lock
+    comment:
+      purpose: 锁住inode；如果inode->disk_info无效则从磁盘读取。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 锁住inode；如果inode->disk_info无效则从磁盘读取。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: inode_unlock
+    comment:
+      purpose: 解锁inode。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 解锁inode。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: inode_put
+    comment:
+      purpose: 与inode_get相对应, 调用者释放inode资源；如果达成某些条件, 可能触发彻底删除。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 与inode_get相对应, 调用者释放inode资源；如果达成某些条件, 可能触发彻底删除。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_delete
+    comment:
+      purpose: '在磁盘里删除1个inode；1. 修改inode_bitmap释放inode_region资源；2. 修改block_bitmap释放block_region资源；注意: 调用者需要持有ip->slk。'
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '在磁盘里删除1个inode；1. 修改inode_bitmap释放inode_region资源；2. 修改block_bitmap释放block_region资源；注意: 调用者需要持有ip->slk。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_read_data
+    comment:
+      purpose: 基于inode的数据读取；inode管理的数据空间逻辑上是一个连续的数组data；需要拷贝data[offset,offset+len)到dst(用户态地址/内核态地址)；返回读取的数据量(字节)。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - offset（uint32）：读写或定位偏移量。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - dst（void *）：目标数据或目标地址。
+        - is_user_dst（bool）：目标地址是否属于用户空间。
+      output: 返回读取的数据量(字节)。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 基于inode的数据读取；inode管理的数据空间逻辑上是一个连续的数组data；需要拷贝data[offset,offset+len)到dst(用户态地址/内核态地址)；返回读取的数据量(字节)。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: inode_write_data
+    comment:
+      purpose: 基于inode的数据写入；inode管理的数据空间逻辑上是一个连续的数组data；需要拷贝src(用户态地址/内核态地址)到data[offset,offset+len)；返回写入的数据量(字节)。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - offset（uint32）：读写或定位偏移量。
+        - len（uint32）：操作长度（单位由函数上下文决定）。
+        - src（void *）：源数据或源地址。
+        - is_user_src（bool）：源地址是否属于用户空间。
+      output: 返回写入的数据量(字节)。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 基于inode的数据写入；inode管理的数据空间逻辑上是一个连续的数组data；需要拷贝src(用户态地址/内核态地址)到data[offset,offset+len)；返回写入的数据量(字节)。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: inode_print
+    comment:
+      purpose: 输出inode信息(for debug)。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - name（char *）：目标名称字符串。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 输出inode信息(for debug)。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+interface:
+  - name: locate_or_add_block
+    pre:
+      - inode已加锁且logical block合法
+    post:
+      - 返回已有或新分配的物理块
+    errors:
+      - 超出最大文件或分配失败回滚索引块
+  - name: inode_get/inode_put
+    pre:
+      - inode编号合法
+    post:
+      - cache引用计数增减，nlink为零时删除
+    errors:
+      - cache满或磁盘读写失败报告错误
+  - name: inode_read_data/inode_write_data
+    pre:
+      - inode持睡眠锁且范围合法
+    post:
+      - 文件数据和size按方向同步
+    errors:
+      - I/O失败返回失败且释放buffer
+properties:
+  - id: index-tree
+    text: 直接10块、一级间接2组、二级间接支持大文件。
+  - id: inode-cache-ref
+    text: inode cache使用引用计数和睡眠锁管理并发访问。
+state:
+  stage: inode
+  owned_state:
+    - inode_cache、disk_info、索引树
+  resource_lifetime:
+    - nlink和ref都归零时递归释放数据块和inode bitmap
+preconditions:
+  - buffer cache、bitmap和sleep lock已初始化
+postconditions:
+  - 文件数据可跨块读写且inode元数据持久化
+invariants:
+  - id: inode-lock
+    text: disk_info读写和索引树修改必须持inode锁。
+  - id: block-ownership
+    text: inode释放不能留下bitmap已占用但不可达的数据块。
+dependencies:
+  - kernel/buffer-bitmap
+  - kernel/process
+  - kernel/lock
+rely:
+  - 磁盘inode区域和block geometry
+guarantee:
+  - 向目录和文件层提供稳定inode对象
+algorithm_intent: 采用xv6式直接/间接索引树和cache引用计数。
+concurrency:
+  module:
+    module: kernel/inode
+    shared_state:
+      - inode cache
+    lock_types:
+      - spinlock
+      - sleeplock
+    lock_order:
+      - cache锁后inode锁
+    atomic_sections:
+      - ref计数和磁盘同步
+    interrupt_rules:
+      - I/O可睡眠但不在中断上下文
+    rely:
+      - 进程调度
+    guarantee:
+      - 同一inode数据访问串行
+    wait_wakeup_rules: []
+    forbidden_patterns:
+      - 持buffer锁跨睡眠锁嵌套

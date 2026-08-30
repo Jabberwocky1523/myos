@@ -1,0 +1,297 @@
+id: kernel/memory
+module: kernel/memory
+purpose: 管理物理页并构造可激活的内核Sv39地址空间。
+owns:
+  - src/kernel/mem/pmem.c
+  - src/kernel/mem/kvm.c
+  - src/kernel/mem/type.h
+  - src/kernel/mem/method.h
+  - src/kernel/lib/utils.c
+functions:
+  - name: check_inkernel
+    comment:
+      purpose: 检查地址是否在kernel内。
+      input:
+        - p（uint64）：check_inkernel使用的数值参数。
+      output: 返回布尔值，表示源码所检查的条件或操作结果是否成立。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 检查地址是否在kernel内。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: pmem_init
+    comment:
+      purpose: 物理内存的初始化；本质上就是填写kern_region和user_region, 包括基本数值和空闲链表。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 物理内存的初始化；本质上就是填写kern_region和user_region, 包括基本数值和空闲链表。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: pmem_alloc
+    comment:
+      purpose: 尝试返回一个可分配的清零后的物理页；失败则panic锁死。
+      input:
+        - in_kernel（bool）：是否选择内核物理内存区域。
+      output: 尝试返回一个可分配的清零后的物理页。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 尝试返回一个可分配的清零后的物理页；失败则panic锁死。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: pmem_free
+    comment:
+      purpose: 释放一个物理页；失败则panic锁死。
+      input:
+        - page（uint64）：目标页面或页面数量。
+        - in_kernel（bool）：是否选择内核物理内存区域。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放一个物理页；失败则panic锁死。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: pmem_stat
+    comment:
+      purpose: 获取可用内存信息。
+      input:
+        - free_pages_in_kernel（uint32 *）：目标页面或页面数量。
+        - free_pages_in_user（uint32 *）：目标页面或页面数量。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 获取可用内存信息。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: vm_getpte
+    comment:
+      purpose: 根据pagetable,找到va对应的pte；若设置alloc=true 则在PTE无效时尝试申请一个物理页；成功返回PTE, 失败返回NULL；提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - va（uint64）：虚拟地址。
+        - alloc（bool）：vm_getpte使用的alloc参数。
+      output: 成功返回PTE, 失败返回NULL。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 根据pagetable,找到va对应的pte；若设置alloc=true 则在PTE无效时尝试申请一个物理页；成功返回PTE, 失败返回NULL；提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: vm_mappages
+    comment:
+      purpose: '在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射；本质是找到va在页表对应位置的pte并修改它；检查: va pa 应当是 page-aligned, len(字节数)
+        > 0, va + len <= VA_MAX；注意: perm 应该如何使用。'
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - va（uint64）：虚拟地址。
+        - pa（uint64）：物理地址。
+        - len（uint64）：操作长度（单位由函数上下文决定）。
+        - perm（int）：vm_mappages使用的perm参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射；本质是找到va在页表对应位置的pte并修改它；检查: va pa 应当是 page-aligned, len(字节数) > 0, va
+        + len <= VA_MAX；注意: perm 应该如何使用。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: vm_unmappages
+    comment:
+      purpose: 解除pgtbl中[va, va+len)区域的映射；如果freeit == true则释放对应物理页, 默认是用户的物理页。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+        - va（uint64）：虚拟地址。
+        - len（uint64）：操作长度（单位由函数上下文决定）。
+        - freeit（bool）：vm_unmappages使用的freeit参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 解除pgtbl中[va, va+len)区域的映射；如果freeit == true则释放对应物理页, 默认是用户的物理页。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: kvm_init
+    comment:
+      purpose: 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域的页表映射；相当于部分填充kernel_pgtbl。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域的页表映射；相当于部分填充kernel_pgtbl。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: kvm_inithart
+    comment:
+      purpose: 每个CPU都需要调用, 从不使用页表切换到使用内核页表；切换后需要刷新TLB里面的缓存。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 每个CPU都需要调用, 从不使用页表切换到使用内核页表；切换后需要刷新TLB里面的缓存。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: vm_print
+    comment:
+      purpose: 输出页表内容(for debug)。
+      input:
+        - pgtbl（pgtbl_t）：待访问或修改的页表对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 输出页表内容(for debug)。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: memset
+    comment:
+      purpose: 从begin开始对连续n个字节赋值data。
+      input:
+        - begin（void *）：memset使用的begin参数。
+        - data（uint8）：memset使用的data参数。
+        - n（uint32）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 从begin开始对连续n个字节赋值data。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: memmove
+    comment:
+      purpose: 从src向dst拷贝n个字节的数据。
+      input:
+        - dst（void *）：目标数据或目标地址。
+        - src（const void *）：源数据或源地址。
+        - n（uint32）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 从src向dst拷贝n个字节的数据。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: strncmp
+    comment:
+      purpose: 字符串p的前n个字符与q做比较；按照ASCII码大小逐个比较；相同返回0 大于或小于返回正数或负数。
+      input:
+        - p（const char *）：目标对象指针。
+        - q（const char *）：strncmp使用的q参数。
+        - n（uint32）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 相同返回0 大于或小于返回正数或负数。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 字符串p的前n个字符与q做比较；按照ASCII码大小逐个比较；相同返回0 大于或小于返回正数或负数。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: strlen
+    comment:
+      purpose: 返回字符串长度。
+      input:
+        - str（const char *）：strlen使用的str参数。
+      output: 返回字符串长度。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 返回字符串长度。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: pmem_alloc
+    pre:
+      - 物理页区间已初始化
+    post:
+      - 返回页对齐物理页并从freelist移除
+    errors:
+      - 耗尽返回空指针
+  - name: pmem_free
+    pre:
+      - 地址属于合法物理页
+    post:
+      - 页面归还freelist并可再次分配
+    errors:
+      - 非法或未对齐地址拒绝释放
+  - name: kvm_init
+    pre:
+      - 物理分配器可用
+    post:
+      - 内核页表包含内核和设备映射
+    errors:
+      - 分配或映射失败停止启动
+  - name: kvm_inithart
+    pre:
+      - 内核页表构造完成
+    post:
+      - satp指向根页表并执行sfence.vma
+    errors:
+      - 根页表无效时禁止激活
+properties:
+  - id: free-page-boundary
+    text: 第一可用页为内核镜像末端向上取整后的地址，PHYSTOP之外不可分配。
+  - id: mapping-permission
+    text: text为可执行只读，data为可写不可执行，设备按最小权限映射。
+  - id: sv39-walk
+    text: 页表遍历依次处理三级VPN，叶子PTE才承载权限。
+state:
+  stage: memory
+  owned_state:
+    - 物理freelist
+    - kernel_pgtbl
+  resource_lifetime:
+    - 分配页归调用者所有，释放后重新进入freelist
+preconditions:
+  - Lab1已进入S-mode
+postconditions:
+  - 内核能够在启用Sv39后继续执行
+invariants:
+  - id: exclusive-page-ownership
+    text: 每个物理页要么已分配，要么恰好在freelist中。
+  - id: no-user-kernel-mapping
+    text: 内核页表叶子映射不设置PTE_U。
+dependencies:
+  - kernel/boot
+  - kernel/lock
+  - toolchain
+rely:
+  - 链接符号end、QEMU内存范围和RISC-V Sv39硬件
+guarantee:
+  - 为后续用户页表和进程模块提供页分配与页表基础
+algorithm_intent: 使用带锁的LIFO单链freelist和三级页表walk。
+concurrency:
+  module:
+    module: kernel/memory
+    shared_state:
+      - freelist
+    lock_types:
+      - spinlock
+    lock_order:
+      - allocator lock
+    atomic_sections:
+      - freelist push/pop
+    interrupt_rules:
+      - 锁保存并恢复中断状态
+    rely:
+      - Lab2单hart
+    guarantee:
+      - 分配释放互斥
+    wait_wakeup_rules: []
+    forbidden_patterns:
+      - 未持锁读写freelist
+  operations:
+    pmem_alloc:
+      atomicity: one locked pop
+    pmem_free:
+      atomicity: validation then one locked push

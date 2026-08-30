@@ -1,0 +1,36 @@
+system:
+  name: xv6实验系统-Lab9
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证文件描述符、设备文件、ELF执行和全系统整合
+kernel:
+  organization: 单体式教学内核
+  execution: initcode启动用户测试程序并通过syscall访问文件系统
+  protection: 用户地址验证、文件权限和进程资源所有权
+  communication: console、file descriptor、inode、device和exec
+  resource_model: 进程持有open_file表和cwd，文件对象共享inode引用
+required_mechanisms:
+  - 行缓冲console
+  - file对象生命周期
+  - open/read/write/lseek/dup
+  - 目录与硬链接
+  - 设备文件
+  - ELF exec
+  - mkfs参数和用户测试
+composition_invariants:
+  - 文件描述符引用计数平衡
+  - exec完整构造新地址空间后再发布
+  - 用户/内核数据复制必须走验证接口
+  - 设备major分发不越界
+non_goals:
+  - 超出仓库实现的网络、SMP硬件证据和更多文件系统格式
+hardware_port:
+  board: QEMU virt
+  boot: src/loader/kernel.ld与user.ld、disk.img
+  console: 行缓冲UART console
+  interrupt: UART和VirtIO沿用前序实验

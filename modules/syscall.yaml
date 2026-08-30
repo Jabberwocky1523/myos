@@ -1,0 +1,444 @@
+id: kernel/syscall
+module: kernel/syscall
+purpose: 将用户ecall号分发到内核服务并返回结果。
+owns:
+  - src/kernel/syscall/syscall.c
+  - src/kernel/syscall/sysfunc.c
+  - src/kernel/syscall/method.h
+  - src/kernel/syscall/mod.h
+  - src/kernel/syscall/type.h
+functions:
+  - name: syscall
+    comment:
+      purpose: 基于系统调用表的请求跳转。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 基于系统调用表的请求跳转。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: arg_raw
+    comment:
+      purpose: 读取 n 号参数,它放在 an 寄存器中。
+      input:
+        - n（int）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 返回uint64类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取 n 号参数,它放在 an 寄存器中。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: arg_uint32
+    comment:
+      purpose: 读取 n 号参数, 作为 uint32 存储。
+      input:
+        - n（int）：数量、长度或编号，具体含义由函数上下文决定。
+        - ip（uint32 *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取 n 号参数, 作为 uint32 存储。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: arg_uint64
+    comment:
+      purpose: 读取 n 号参数, 作为 uint64 存储。
+      input:
+        - n（int）：数量、长度或编号，具体含义由函数上下文决定。
+        - ip（uint64 *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取 n 号参数, 作为 uint64 存储。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: arg_str
+    comment:
+      purpose: 读取 n 号参数指向的字符串到 buf, 字符串最大长度是 maxlen。
+      input:
+        - n（int）：数量、长度或编号，具体含义由函数上下文决定。
+        - buf（char *）：数据缓冲区。
+        - maxlen（int）：操作数量或长度。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取 n 号参数指向的字符串到 buf, 字符串最大长度是 maxlen。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_brk
+    comment:
+      purpose: 用户堆空间伸缩；uint64 new_heap_top (如果是0, 代表查询当前堆顶位置)；成功返回new_heap_top, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回new_heap_top, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 用户堆空间伸缩；uint64 new_heap_top (如果是0, 代表查询当前堆顶位置)；成功返回new_heap_top, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_mmap
+    comment:
+      purpose: 增加一段内存映射；uint64 start 起始地址；uint32 len   范围 (字节,需检查是否是page-aligned)；成功返回映射空间的起始地址, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回映射空间的起始地址, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 增加一段内存映射；uint64 start 起始地址；uint32 len   范围 (字节,需检查是否是page-aligned)；成功返回映射空间的起始地址, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_munmap
+    comment:
+      purpose: 解除一段内存映射；uint64 start 起始地址；uint32 len   范围 (字节, 需检查是否是page-aligned)；成功返回0 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 解除一段内存映射；uint64 start 起始地址；uint32 len   范围 (字节, 需检查是否是page-aligned)；成功返回0 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_print_str
+    comment:
+      purpose: 打印一个字符串；char *str；成功返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 打印一个字符串；char *str；成功返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_print_int
+    comment:
+      purpose: 打印一个32位整数；int num；成功返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 打印一个32位整数；int num；成功返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_fork
+    comment:
+      purpose: 进程复制；返回子进程的pid。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回子进程的pid。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 进程复制；返回子进程的pid。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_wait
+    comment:
+      purpose: 等待子进程退出；uint64 addr_exit_state。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回uint64类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 等待子进程退出；uint64 addr_exit_state。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_exit
+    comment:
+      purpose: 进程退出；int exit_code；不返回。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 不返回。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 进程退出；int exit_code；不返回。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_sleep
+    comment:
+      purpose: 让进程睡眠一段时间；uint32 ntick (1个tick大约0.1秒)；成功返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 让进程睡眠一段时间；uint32 ntick (1个tick大约0.1秒)；成功返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_getpid
+    comment:
+      purpose: 返回当前进程的pid。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回当前进程的pid。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 返回当前进程的pid。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_show_bitmap
+    comment:
+      purpose: 输出目标bitmap的状态；uint32 choose_bitmap (0->data_bitmap 1->inode_bitmap)；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 输出目标bitmap的状态；uint32 choose_bitmap (0->data_bitmap 1->inode_bitmap)；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_show_buffer
+    comment:
+      purpose: 输出buffer链表的状态；成功返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 输出buffer链表的状态；成功返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_flush_buffer
+    comment:
+      purpose: 释放非活跃链表中buffer持有的物理内存资源；uint32 buffer_count (希望释放的buffer数量)；成功返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 释放非活跃链表中buffer持有的物理内存资源；uint32 buffer_count (希望释放的buffer数量)；成功返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_exec
+    comment:
+      purpose: 执行ELF文件以替换当前进程的内容；char *path；char **argv；成功返回argc, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回argc, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 执行ELF文件以替换当前进程的内容；char *path；char **argv；成功返回argc, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: alloc_fd
+    comment:
+      purpose: 构建fd->file的映射, 返回fd。
+      input:
+        - file（file_t *）：待操作的文件对象。
+      output: 构建fd->file的映射, 返回fd。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 构建fd->file的映射, 返回fd。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_open
+    comment:
+      purpose: 打开或创建文件；char *path；uint32 open_mode；成功返回fd, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回fd, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 打开或创建文件；char *path；uint32 open_mode；成功返回fd, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_close
+    comment:
+      purpose: 关闭文件；uint32 fd；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 关闭文件；uint32 fd；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_read
+    comment:
+      purpose: 读取文件内容；uint32 fd；uint32 len；uint64 addr；成功返回读到的字节数, 失败返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回读到的字节数, 失败返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 读取文件内容；uint32 fd；uint32 len；uint64 addr；成功返回读到的字节数, 失败返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_write
+    comment:
+      purpose: 写入文件内容；uint32 fd；uint32 len；uint64 addr；成功返回写入的字节数, 失败返回0。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回写入的字节数, 失败返回0。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 写入文件内容；uint32 fd；uint32 len；uint64 addr；成功返回写入的字节数, 失败返回0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_lseek
+    comment:
+      purpose: 调整读写指针位置；uint32 fd；uint32 offset；uint32 flag；成功返回新的偏移量, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回新的偏移量, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 调整读写指针位置；uint32 fd；uint32 offset；uint32 flag；成功返回新的偏移量, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_dup
+    comment:
+      purpose: 复制文件控制权；uinr32 fd；成功返回new_fd, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回new_fd, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 复制文件控制权；uinr32 fd；成功返回new_fd, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_fstat
+    comment:
+      purpose: 获取文件信息；uint32 fd；uint64 addr；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 获取文件信息；uint32 fd；uint64 addr；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_get_dentries
+    comment:
+      purpose: 获取目录中的所有目录项信息；uint32 fd；uint64 addr；uint32 buffer_len；成功返回读到的字节数, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回读到的字节数, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 获取目录中的所有目录项信息；uint32 fd；uint64 addr；uint32 buffer_len；成功返回读到的字节数, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_mkdir
+    comment:
+      purpose: 创建目录；char *path；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 创建目录；char *path；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_chdir
+    comment:
+      purpose: 修改当前工作目录；char *new_path；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 修改当前工作目录；char *new_path；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_print_cwd
+    comment:
+      purpose: 打印当前工作目录的绝对路径；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 打印当前工作目录的绝对路径；成功返回0, 失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: sys_link
+    comment:
+      purpose: 新建链接；char *old_path；char *new_path；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 新建链接；char *old_path；char *new_path；成功返回0, 失败返回-1。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sys_unlink
+    comment:
+      purpose: 删除链接 (可能触发删除文件)；char *path；成功返回0, 失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 成功返回0, 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 删除链接 (可能触发删除文件)；char *path；成功返回0, 失败返回-1。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: syscall
+    pre:
+      - usertrap已验证ecall来源
+    post:
+      - 从a7读取编号并将返回值写入a0
+    errors:
+      - 未注册编号返回失败值
+properties:
+  - id: table-dispatch
+    text: 系统调用通过有界函数表分发而不是任意用户地址跳转。
+  - id: copy-contract
+    text: copyout/copyin/copyinstr失败传播到sysfunc。
+state:
+  stage: syscall
+  owned_state:
+    - syscall跳转表、用户ABI编号
+  resource_lifetime:
+    - 一次ecall只持有当前进程资源
+preconditions:
+  - usertrap保存完整寄存器
+postconditions:
+  - 用户看到确定的a0结果
+invariants:
+  - 系统调用参数必须经过用户内存验证
+dependencies:
+  - kernel/usertrap
+  - kernel/uvm
+rely:
+  - RISC-V a0/a7 ABI
+guarantee:
+  - 提供copy、brk、mmap相关服务
+algorithm_intent: 使用固定编号数组查找函数，具体服务通过uvm接口访问用户内存。
