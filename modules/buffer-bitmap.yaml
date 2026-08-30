@@ -1,0 +1,376 @@
+id: kernel/buffer-bitmap
+module: kernel/buffer-bitmap
+purpose: 管理内存中的唯一磁盘块缓存和磁盘空间位图。
+owns:
+  - src/kernel/fs/buf.c
+  - src/kernel/fs/bitmap.c
+  - src/kernel/fs/fs.c
+  - src/kernel/fs/method.h
+  - src/kernel/fs/mod.h
+  - src/mkfs/mkfs.c
+  - src/mkfs/mkfs.h
+functions:
+  - name: insert_node
+    comment:
+      purpose: 将一个节点拿出来并插入；1. 活跃链表的头部 buf_head_active->next；2. 活跃链表的尾部 buf_head_active->prev；3. 不活跃链表的头部 buf_head_inactive->next；4.
+        不活跃链表的尾部 buf_head_inactive->prev。
+      input:
+        - node（buffer_node_t *）：insert_node使用的node参数。
+        - insert_active（bool）：insert_node使用的insert_active参数。
+        - insert_next（bool）：insert_node使用的insert_next参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 将一个节点拿出来并插入；1. 活跃链表的头部 buf_head_active->next；2. 活跃链表的尾部 buf_head_active->prev；3. 不活跃链表的头部 buf_head_inactive->next；4.
+        不活跃链表的尾部 buf_head_inactive->prev。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: buffer_init
+    comment:
+      purpose: buffer系统初始化：；1. 初始化全局的lk_buf_cache + buf_head_active + buf_head_inactive；2. 初始化buf_cache中的所有node, 并将他们放在不活跃链表中。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - buffer系统初始化：；1. 初始化全局的lk_buf_cache + buf_head_active + buf_head_inactive；2. 初始化buf_cache中的所有node, 并将他们放在不活跃链表中。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: buffer_read
+    comment:
+      purpose: '磁盘读取: block -> buf。'
+      input:
+        - buf（buffer_t *）：数据缓冲区。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '磁盘读取: block -> buf。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: buffer_write
+    comment:
+      purpose: '磁盘写入: buf -> block。'
+      input:
+        - buf（buffer_t *）：数据缓冲区。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '磁盘写入: buf -> block。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: buffer_get
+    comment:
+      purpose: 从buf_cache中获取一个buf。
+      input:
+        - block_num（uint32）：待操作的锁对象。
+      output: 返回buffer_t *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 从buf_cache中获取一个buf。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: buffer_put
+    comment:
+      purpose: 向buf_cache归还一个buf。
+      input:
+        - buf（buffer_t *）：数据缓冲区。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 向buf_cache归还一个buf。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: buffer_freemem
+    comment:
+      purpose: 从后向前遍历非活跃链表, 尝试释放buffer_count个buffer持有的物理内存(data)；返回成功释放资源的buffer数量。
+      input:
+        - buffer_count（uint32）：操作数量或长度。
+      output: 返回成功释放资源的buffer数量。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 从后向前遍历非活跃链表, 尝试释放buffer_count个buffer持有的物理内存(data)；返回成功释放资源的buffer数量。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: buffer_invalidate
+    comment:
+      purpose: 实现buffer_invalidate在当前模块中的代码行为。
+      input:
+        - buffer_count（uint32）：操作数量或长度。
+      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 实现buffer_invalidate在当前模块中的代码行为。
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: bitmap_search_and_set
+    comment:
+      purpose: 查询一个block中的所有bit, 找到空闲bit, 设置1并返回；如果没有空闲bit, 返回-1。
+      input:
+        - bitmap_block_num（uint32）：待操作的锁对象。
+        - valid_count（uint32）：操作数量或长度。
+      output: 查询一个block中的所有bit, 找到空闲bit, 设置1并返回；如果没有空闲bit, 返回-1。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 查询一个block中的所有bit, 找到空闲bit, 设置1并返回；如果没有空闲bit, 返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: bitmap_clear
+    comment:
+      purpose: 将block中第index个bit设为0。
+      input:
+        - bitmap_block_num（uint32）：待操作的锁对象。
+        - index（uint32）：bitmap_clear使用的index参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 将block中第index个bit设为0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: bitmap_alloc_block
+    comment:
+      purpose: 获取一个空闲block, 将data_bitmap对应bit设为1；返回这个block的全局序号。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回这个block的全局序号。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 获取一个空闲block, 将data_bitmap对应bit设为1；返回这个block的全局序号。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: bitmap_alloc_inode
+    comment:
+      purpose: 获取一个空闲inode, 将inode_bitmap对应bit设为1；返回这个inode的全局序号。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回这个inode的全局序号。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 获取一个空闲inode, 将inode_bitmap对应bit设为1；返回这个inode的全局序号。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: bitmap_free_block
+    comment:
+      purpose: 释放一个block, 将data_bitmap对应bit设为0。
+      input:
+        - block_num（uint32）：待操作的锁对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放一个block, 将data_bitmap对应bit设为0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: bitmap_free_inode
+    comment:
+      purpose: 释放一个inode, 将inode_bitmap对应bit设为0。
+      input:
+        - inode_num（uint32）：目标inode编号。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放一个inode, 将inode_bitmap对应bit设为0。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: bitmap_print
+    comment:
+      purpose: 打印某个bitmap中所有分配出去的bit。
+      input:
+        - print_data_bitmap（bool）：bitmap_print使用的print_data_bitmap参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 打印某个bitmap中所有分配出去的bit。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: sb_print
+    comment:
+      purpose: 基于superblock输出磁盘布局信息 (for debug)。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 基于superblock输出磁盘布局信息 (for debug)。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: fs_init
+    comment:
+      purpose: 文件系统初始化。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 文件系统初始化。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: xshort
+    comment:
+      purpose: 转换成小端序。
+      input:
+        - x（unsigned short）：xshort使用的x参数。
+      output: 返回unsigned short类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 转换成小端序。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: xint
+    comment:
+      purpose: 转换成小端序。
+      input:
+        - x（unsigned int）：xint使用的x参数。
+      output: 返回unsigned int类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 转换成小端序。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: block_rw
+    comment:
+      purpose: 读取/写回1个block。
+      input:
+        - block_num（unsigned int）：待操作的锁对象。
+        - buf（void *）：数据缓冲区。
+        - write_it（bool）：block_rw使用的write_it参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取/写回1个block。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_rw
+    comment:
+      purpose: 读取/写回1个inode。
+      input:
+        - inode_num（unsigned int）：目标inode编号。
+        - ip（inode_disk_t *）：待操作的inode对象。
+        - write_it（bool）：inode_rw使用的write_it参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 读取/写回1个inode。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: block_alloc
+    comment:
+      purpose: 从磁盘中申请1个空闲的data block。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回unsigned int类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 从磁盘中申请1个空闲的data block。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_alloc
+    comment:
+      purpose: 从磁盘中申请1个空闲inode。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回unsigned int类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 从磁盘中申请1个空闲inode。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_init
+    comment:
+      purpose: inode初始化。
+      input:
+        - ip（inode_disk_t *）：待操作的inode对象。
+        - type（short）：对象类型或操作类型。
+        - major（short）：inode_init使用的major参数。
+        - minor（short）：inode_init使用的minor参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - inode初始化。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: inode_append
+    comment:
+      purpose: 对inode管理的数据做追加写。
+      input:
+        - ip（inode_disk_t *）：待操作的inode对象。
+        - data（void *）：inode_append使用的data参数。
+        - len（unsigned int）：操作长度（单位由函数上下文决定）。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 对inode管理的数据做追加写。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: buffer_get/buffer_put
+    pre:
+      - 块号在磁盘范围内
+    post:
+      - 返回唯一buffer并维护引用计数和LRU位置
+    errors:
+      - 无空闲buffer时失败
+  - name: bitmap_alloc_block
+    pre:
+      - bitmap已从超级块布局初始化
+    post:
+      - 设置一个空闲位并写回位图块
+    errors:
+      - 无空闲位返回失败
+properties:
+  - id: unique-buffer
+    text: 同一磁盘块同时只有一个cache实例。
+  - id: lru-order
+    text: active/inactive双链表按引用和最近使用顺序维护。
+  - id: bitmap-persistence
+    text: bitmap修改通过buffer_write同步到磁盘。
+state:
+  stage: block-cache
+  owned_state:
+    - buffer表、LRU链、bitmap块、超级块布局
+  resource_lifetime:
+    - ref归零buffer进入inactive，淘汰前必须无引用
+preconditions:
+  - VirtIO和进程睡眠机制已可用
+postconditions:
+  - 块数据和分配状态可跨请求保存
+invariants:
+  - id: cache-uniqueness
+    text: 一个块号不对应两个live buffer。
+  - id: ref-protection
+    text: 有引用buffer不能被淘汰。
+dependencies:
+  - kernel/block-device
+  - kernel/process
+  - kernel/lock
+rely:
+  - 磁盘块大小512字节和mkfs布局
+guarantee:
+  - 为inode层提供稳定块缓存
+algorithm_intent: 用活跃/非活跃链表实现LRU，用逐字节位运算操作bitmap。

@@ -1,0 +1,94 @@
+id: lab8-inode-namespace
+transition: lab7 -> lab8
+reason: 在块级磁盘管理上增加文件数据索引和人类可理解的目录层次。
+changes:
+- kernel/inode
+- kernel/dentry-fs
+- kernel/buffer-bitmap
+- kernel/process
+- kernel/memory
+- kernel/lock
+- toolchain
+required_updates:
+- target: fs_init
+  module: kernel/dentry-fs
+  change: 在块缓存和超级块初始化后继续初始化inode缓存，再开放inode与目录操作。
+  reason: Lab8的目录层依赖可用的inode生命周期管理。
+- target: buffer_get、buffer_freemem
+  module: kernel/buffer-bitmap
+  change: 修正非活跃缓存扫描与释放逻辑，并提供可在持锁状态下失效缓存页的协作入口，避免仍被引用的块缓存被回收。
+  reason: inode索引和跨块读写提高了缓存与物理页的使用压力。
+- target: mkfs main、inode_append
+  module: kernel/buffer-bitmap
+  change: 按照新的inode索引和目录项布局构造磁盘镜像，并写入初始目录层次。
+  reason: 运行时inode/dentry实现必须与磁盘初始格式保持一致。
+- target: pmem_alloc
+  module: kernel/memory
+  change: 内核物理页耗尽时先请求buffer_invalidate回收非活跃缓存占用的页面，重新检查可用页后才决定panic。
+  reason: inode与跨块访问增加缓存压力，物理分配器需要与可回收buffer协作而不能立即终止。
+- target: kernel_pgtbl
+  module: kernel/memory
+  change: 将内核页表从文件内私有状态改为受头文件声明的模块状态，供需要内核地址转换的子系统使用。
+  reason: 文件系统和内存回收协作需要共享统一的内核页表身份，避免复制或猜测页表根。
+- target: spinlock_acquire、spinlock_release
+  module: kernel/lock
+  change: 锁重入或非法释放时输出具体锁名后终止，使inode、buffer和内存回收交叉路径能够定位锁序错误。
+  reason: Lab8引入多层缓存锁和睡眠锁后，只有通用错误文本不足以定位违反锁约束的位置。
+- target: Makefile
+  module: toolchain
+  change: 把inode、dentry及更新后的mkfs输入纳入构建，并确保运行时文件系统结构与磁盘初始化工具使用相同布局。
+  reason: 内核inode解释和mkfs写出的超级块、bitmap、inode及目录项必须同步升级。
+new_invariants:
+- inode元数据写回是目录可见性的发布点
+- 删除inode必须释放完整索引树
+- 内核页不足时只能回收无活跃引用的buffer数据页
+- 运行时与mkfs使用的inode和dentry布局必须逐字段一致
+verification:
+- id: inode-lifecycle
+  entry: fs_init / test1
+  setup:
+  - 在fs_init末尾只启用test1。
+  steps:
+  - 获取根inode并记录bitmap。
+  - 创建目录inode和数据inode，对数据inode增加一次引用。
+  - 将nlink置0并分阶段inode_put。
+  expected:
+  - 创建后inode bitmap出现对应占用位。
+  - 只有nlink为0且最后一个引用释放时才删除磁盘inode。
+  - 最终bitmap恢复，期间无重复释放。
+- id: inode-data-io
+  entry: fs_init / test2
+  setup:
+  - 在fs_init末尾只启用test2；允许大数据路径运行较长时间。
+  steps:
+  - 跨多个block反复写入数据。
+  - 从非块对齐偏移读取并比较内容。
+  - 覆盖直接索引和间接索引范围后释放inode。
+  expected:
+  - 每次inode_write_data返回请求长度。
+  - 跨块读取内容与写入序列一致。
+  - inode size和索引块随写入增长，删除后所有数据块与索引块释放。
+- id: dentry-create-search-delete
+  entry: fs_init / test3
+  setup:
+  - 在fs_init末尾只启用test3。
+  steps:
+  - 从根目录查找mkfs预置目录项并读取文件内容。
+  - 创建new_dir目录项并立即搜索。
+  - 删除new_dir并再次遍历目录。
+  expected:
+  - 预置名称解析到有效inode且内容符合磁盘初始化数据。
+  - 创建返回偏移，搜索和删除得到同一inode号。
+  - 删除后目录遍历不再包含new_dir。
+- id: hierarchical-path-resolution
+  entry: fs_init / test4
+  setup:
+  - 在fs_init末尾只启用test4。
+  steps:
+  - 构造/AABBC/aaabb/file.txt层次并写回inode。
+  - 使用包含重复斜杠的路径解析目标与父目录。
+  - 读取目标文件内容并检查提取的末级名称。
+  expected:
+  - path_to_inode返回file.txt对应inode。
+  - path_to_parent_inode返回aaabb目录且name为file.txt。
+  - 读取内容为This is file context且引用和锁均正确释放。

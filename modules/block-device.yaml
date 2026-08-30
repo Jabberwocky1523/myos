@@ -1,0 +1,158 @@
+id: kernel/block-device
+module: kernel/block-device
+purpose: 通过VirtIO把内核内存请求转换为磁盘块读写。
+owns:
+  - src/kernel/fs/virtio.c
+  - src/kernel/fs/type.h
+functions:
+  - name: virtio_disk_init
+    comment:
+      purpose: 初始化虚拟磁盘。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 初始化虚拟磁盘。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: alloc_desc
+    comment:
+      purpose: 分配，实现alloc_desc对应的模块行为。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 返回int类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 分配，实现alloc_desc对应的模块行为。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: free_desc
+    comment:
+      purpose: 释放，实现free_desc对应的模块行为。
+      input:
+        - i（int）：free_desc使用的i参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放，实现free_desc对应的模块行为。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: free_chain
+    comment:
+      purpose: 释放，实现free_chain对应的模块行为。
+      input:
+        - i（int）：free_chain使用的i参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 释放，实现free_chain对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: alloc3_desc
+    comment:
+      purpose: 分配，实现alloc3_desc对应的模块行为。
+      input:
+        - idx（int *）：alloc3_desc使用的idx参数。
+      output: 返回int类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 分配，实现alloc3_desc对应的模块行为。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: virtio_disk_rw
+    comment:
+      purpose: 基于buffer的block读写操作。
+      input:
+        - b（buffer_t *）：virtio_disk_rw使用的b参数。
+        - write（bool）：virtio_disk_rw使用的write参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 基于buffer的block读写操作。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: virtio_disk_intr
+    comment:
+      purpose: 磁盘中断处理。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 磁盘中断处理。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+interface:
+  - name: virtio_disk_rw
+    pre:
+      - buffer合法且VirtIO已初始化
+    post:
+      - 请求提交并在完成后更新buffer
+    errors:
+      - 设备状态或descriptor非法时失败
+  - name: virtio_disk_intr
+    pre:
+      - 已claim VirtIO IRQ
+    post:
+      - 释放请求等待者并完成设备状态处理
+    errors:
+      - 异常状态打印诊断
+properties:
+  - id: dma-translation
+    text: DMA descriptor使用vm_getpte将内核虚拟地址翻译为物理地址。
+  - id: deferred-irq
+    text: PLIC启用VIRTIO_IRQ并在外部中断分发中调用驱动。
+state:
+  stage: block-io
+  owned_state:
+    - descriptor ring、used ring、请求状态
+  resource_lifetime:
+    - 请求完成后释放descriptor并唤醒等待者
+preconditions:
+  - 内核页表映射VIRTIO0且进程上下文可睡眠
+postconditions:
+  - 一个块请求完成且数据可被buffer使用
+invariants:
+  - id: one-request-state
+    text: 一个descriptor请求只能有一个完成状态。
+dependencies:
+  - kernel/memory
+  - kernel/trap
+  - kernel/process
+rely:
+  - QEMU VirtIO MMIO规范和IRQ 1
+guarantee:
+  - 向buffer层提供同步块读写
+algorithm_intent: 采用VirtIO descriptor/available/used ring，I/O完成由中断唤醒。
+concurrency:
+  module:
+    module: kernel/block-device
+    shared_state:
+      - descriptor ring、请求状态
+    lock_types:
+      - spinlock
+    lock_order:
+      - 设备锁
+    atomic_sections:
+      - 提交和完成
+    interrupt_rules:
+      - claim到complete期间不睡眠
+    rely:
+      - 单设备请求序列
+    guarantee:
+      - 请求状态一致
+    wait_wakeup_rules:
+      - 完成唤醒请求进程
+    forbidden_patterns:
+      - 未完成请求重复提交
+  operations:
+    virtio_disk_rw:
+      atomicity: one request lifecycle

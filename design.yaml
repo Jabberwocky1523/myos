@@ -1,0 +1,33 @@
+system:
+  name: xv6实验系统-Lab8
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证inode索引、目录项、路径解析和文件系统初始化
+kernel:
+  organization: 单体式教学内核
+  execution: 内核通过buffer和inode层访问磁盘文件
+  protection: 文件系统操作受睡眠锁和进程上下文保护
+  communication: inode/dentry路径层与块层
+  resource_model: inode cache引用计数与磁盘bitmap共同管理资源
+required_mechanisms:
+  - 直接/一级/二级间接索引
+  - inode cache生命周期
+  - 目录项
+  - 路径解析
+  - fs_init
+composition_invariants:
+  - inode元数据写回磁盘后才对新获取者可见
+  - 目录项和inode引用计数一致
+  - 释放inode递归释放数据块
+non_goals:
+  - 完整文件描述符系统调用和ELF exec
+hardware_port:
+  board: QEMU virt
+  boot: disk.img和VirtIO沿用Lab7
+  console: 文件系统测试输出
+  interrupt: VirtIO IRQ 1

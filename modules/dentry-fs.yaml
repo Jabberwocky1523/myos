@@ -1,0 +1,167 @@
+id: kernel/dentry-fs
+module: kernel/dentry-fs
+purpose: 在inode之上组织目录项、路径解析和文件系统初始化。
+owns:
+  - src/kernel/fs/dentry.c
+functions:
+  - name: dentry_search
+    comment:
+      purpose: '在目录ip中查找是否存在名字为name的目录项；如果找到了返回目录项中存储的inode_num；如果没找到返回INVALID_INODE_NUM；注意: 调用者需要持有ip->slk。'
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - name（char *）：目标名称字符串。
+      output: 如果找到了返回目录项中存储的inode_num；如果没找到返回INVALID_INODE_NUM。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '在目录ip中查找是否存在名字为name的目录项；如果找到了返回目录项中存储的inode_num；如果没找到返回INVALID_INODE_NUM；注意: 调用者需要持有ip->slk。'
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: dentry_create
+    comment:
+      purpose: '在目录ip中寻找空闲槽位, 插入新的dentry；如果成功插入则返回这个目录项的偏移量(还需要更新size)；如果插入失败(没有空间/发生重名)返回-1；注意: 调用者需要持有ip->slk。'
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - inode_num（uint32）：目标inode编号。
+        - name（char *）：目标名称字符串。
+      output: 如果成功插入则返回这个目录项的偏移量(还需要更新size)；如果插入失败(没有空间/发生重名)返回-1。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '在目录ip中寻找空闲槽位, 插入新的dentry；如果成功插入则返回这个目录项的偏移量(还需要更新size)；如果插入失败(没有空间/发生重名)返回-1；注意: 调用者需要持有ip->slk。'
+    errors:
+      - 源码断言不成立时触发assert诊断。
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: dentry_delete
+    comment:
+      purpose: '在目录ip下删除名称为name的dentry, 返回它的inode_num；如果匹配失败或者遇到非法情况返回INVALID_INODE_NUM；注意: 调用者需要持有ip->slk。'
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+        - name（char *）：目标名称字符串。
+      output: 在目录ip下删除名称为name的dentry, 返回它的inode_num；如果匹配失败或者遇到非法情况返回INVALID_INODE_NUM。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '在目录ip下删除名称为name的dentry, 返回它的inode_num；如果匹配失败或者遇到非法情况返回INVALID_INODE_NUM；注意: 调用者需要持有ip->slk。'
+    errors:
+      - 源码断言不成立时触发assert诊断。
+  - name: dentry_print
+    comment:
+      purpose: 输出目录中所有有效目录项的信息 (for debug)。
+      input:
+        - ip（inode_t *）：待操作的inode对象。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 输出目录中所有有效目录项的信息 (for debug)。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 源码断言不成立时触发assert诊断。
+  - name: get_element
+    comment:
+      purpose: 获取，实现get_element对应的模块行为。
+      input:
+        - path（char *）：目标路径字符串。
+        - name（char *）：目标名称字符串。
+      output: 返回char *类型指针；无可用结果时的行为由源码错误路径决定。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 获取，实现get_element对应的模块行为。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: __path_to_inode
+    comment:
+      purpose: 根据文件路径(/A/B/C)查找对应inode(inode_B or inode_C)；如果find_parent_inode == true, 返回父节点inode, name为下一级子节点的名字；如果find_parent_inode
+        == false, 返回子节点inode, name无意义；如果失败返回NULL。
+      input:
+        - path（char *）：目标路径字符串。
+        - name（char *）：目标名称字符串。
+        - find_parent_inode（bool）：待操作的inode对象或编号。
+      output: 如果find_parent_inode == true, 返回父节点inode, name为下一级子节点的名字；如果find_parent_inode == false, 返回子节点inode, name无意义；如果失败返回NULL。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 根据文件路径(/A/B/C)查找对应inode(inode_B or inode_C)；如果find_parent_inode == true, 返回父节点inode, name为下一级子节点的名字；如果find_parent_inode
+        == false, 返回子节点inode, name无意义；如果失败返回NULL。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: path_to_inode
+    comment:
+      purpose: 基于path寻找inode；失败返回NULL。
+      input:
+        - path（char *）：目标路径字符串。
+      output: 失败返回NULL。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 基于path寻找inode；失败返回NULL。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: path_to_parent_inode
+    comment:
+      purpose: 基于path寻找inode->parent, 将inode->name放入name；失败返回NULL, 同时name无效。
+      input:
+        - path（char *）：目标路径字符串。
+        - name（char *）：目标名称字符串。
+      output: 失败返回NULL, 同时name无效。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 基于path寻找inode->parent, 将inode->name放入name；失败返回NULL, 同时name无效。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: path_to_inode
+    pre:
+      - 路径字符串合法且根inode存在
+    post:
+      - 逐级解析返回目标inode
+    errors:
+      - 缺失目录项或非目录中继续解析返回失败
+  - name: dentry_create/dentry_delete
+    pre:
+      - 父inode已加锁且名称合法
+    post:
+      - 目录槽位和inode链接关系更新
+    errors:
+      - 重名、目录满或I/O失败不发布半成品
+  - name: fs_init
+    pre:
+      - 块设备和buffer已初始化
+    post:
+      - 读取并校验超级块，初始化inode cache
+    errors:
+      - 超级块magic错误停止文件系统启动
+properties:
+  - id: path-normalization
+    text: 解析时跳过连续斜杠并支持父目录遍历。
+  - id: metadata-sync
+    text: 新目录索引修改后显式inode_rw写回磁盘。
+state:
+  stage: namespace
+  owned_state:
+    - 根目录、目录项槽位、超级块
+  resource_lifetime:
+    - 目录项删除减少链接并由inode层决定回收
+preconditions:
+  - inode和buffer层可用
+postconditions:
+  - 目录树可查找、创建和删除
+invariants:
+  - id: parent-child
+    text: 目录项指向的inode必须可被inode_get获取。
+dependencies:
+  - kernel/inode
+  - kernel/buffer-bitmap
+  - kernel/process
+rely:
+  - ROOT_INODE和磁盘目录格式
+guarantee:
+  - 向文件管理层提供路径和目录抽象
+algorithm_intent: 以目录inode的index[0]槽位存储dentry，逐组件遍历路径。
