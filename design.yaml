@@ -1,0 +1,34 @@
+system:
+  name: xv6实验系统-Lab5
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证用户内存复制、brk、mmap和系统调用分发
+kernel:
+  organization: 单体式教学内核
+  execution: 用户程序通过ecall请求内核服务
+  protection: 页表权限和逐页用户地址验证
+  communication: syscall table与copyin/copyout
+  resource_model: 进程拥有heap/stack/mmap区间
+required_mechanisms:
+  - 用户内存安全复制
+  - brk堆管理
+  - 自动栈增长
+  - mmap/munmap
+  - 页表复制销毁
+  - 系统调用表
+composition_invariants:
+  - copy函数验证范围后才访问
+  - mmap区域不与heap/stack重叠
+  - 失败路径释放临时页
+non_goals:
+  - 文件系统文件操作和exec完整装载
+hardware_port:
+  board: QEMU virt
+  boot: 沿用Lab4
+  console: syscall调试输出
+  interrupt: 用户缺页经usertrap处理

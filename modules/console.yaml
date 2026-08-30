@@ -1,0 +1,190 @@
+id: kernel/console
+module: kernel/console
+purpose: 提供早期UART输出和可格式化的内核打印。
+owns:
+  - src/kernel/lib/uart.c
+  - src/kernel/lib/print.c
+  - src/kernel/lib/method.h
+  - src/kernel/lib/type.h
+functions:
+  - name: uart_init
+    comment:
+      purpose: uart 初始化。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - uart 初始化。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uart_putc_sync
+    comment:
+      purpose: 单个字符输出。
+      input:
+        - c（int）：uart_putc_sync使用的c参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 单个字符输出。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: uart_getc_sync
+    comment:
+      purpose: 单个字符输入；失败返回-1。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 失败返回-1。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 单个字符输入；失败返回-1。
+    errors:
+      - 可恢复失败按源码约定返回空值、零或负值。
+  - name: uart_intr
+    comment:
+      purpose: 中断处理(键盘输入->屏幕输出)。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 中断处理(键盘输入->屏幕输出)。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: print_init
+    comment:
+      purpose: 初始化uart + 初始化printf锁。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 初始化uart + 初始化printf锁。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: printint
+    comment:
+      purpose: 输出，实现printint对应的模块行为。
+      input:
+        - xx（int）：printint使用的xx参数。
+        - base（int）：printint使用的base参数。
+        - sign（int）：printint使用的sign参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现printint对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: printptr
+    comment:
+      purpose: 输出，实现printptr对应的模块行为。
+      input:
+        - x（uint64）：printptr使用的x参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现printptr对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: printfloat
+    comment:
+      purpose: 输出，实现printfloat对应的模块行为。
+      input:
+        - f（double）：待操作的文件对象。
+        - precision（int）：printfloat使用的precision参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 输出，实现printfloat对应的模块行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: printf
+    comment:
+      purpose: '标准化输出, 需要支持:；1. %d (32位有符号数,以10进制输出)；2. %p (32位无符号数,以16进制输出)；3. %x (64位无符号数,以0x开头的16进制输出)；4. %c (单个字符)；5.
+        %s (字符串)；提示: stdarg.h中的va_list中包括你需要的参数地址。'
+      input:
+        - fmt（const char *）：printf使用的fmt参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - '标准化输出, 需要支持:；1. %d (32位有符号数,以10进制输出)；2. %p (32位无符号数,以16进制输出)；3. %x (64位无符号数,以0x开头的16进制输出)；4. %c (单个字符)；5. %s (字符串)；提示:
+        stdarg.h中的va_list中包括你需要的参数地址。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: panic
+    comment:
+      purpose: 报错并终止输出。
+      input:
+        - s（const char *）：panic使用的s参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 报错并终止输出。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+  - name: assert
+    comment:
+      purpose: 如果不满足条件, 则调用panic。
+      input:
+        - condition（bool）：assert使用的condition参数。
+        - warning（const char *）：assert使用的warning参数。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - 如果不满足条件, 则调用panic。
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 源码断言不成立时触发assert诊断。
+interface:
+  - name: uartputc
+    pre:
+      - UART MMIO可访问
+    post:
+      - 一个字符写入发送寄存器
+    errors:
+      - 发送器未就绪时保持轮询
+  - name: printf
+    pre:
+      - 调用者提供合法格式串
+    post:
+      - 格式化文本按字符输出
+    errors:
+      - 未支持格式不应破坏锁状态
+properties:
+  - id: uart-byte-access
+    text: UART寄存器使用字节宽度和固定偏移访问。
+  - id: print-serialization
+    text: printf使用自旋锁保护多字符输出，避免并发交错。
+state:
+  stage: boot-console
+  owned_state:
+    - UART发送状态
+    - printf自旋锁
+  resource_lifetime:
+    - UART配置和打印锁持续有效
+preconditions:
+  - 监督者可访问UART地址
+postconditions:
+  - QEMU控制台可观察输出
+invariants:
+  - 输出锁获取后必须在所有正常返回路径释放
+dependencies:
+  - kernel/boot
+  - kernel/lock
+rely:
+  - QEMU ns16550a UART
+guarantee:
+  - 后续模块拥有同步诊断输出
+algorithm_intent: 轮询发送器就绪位并以锁包围格式化输出。
