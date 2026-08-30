@@ -1,0 +1,34 @@
+system:
+  name: xv6实验系统-Lab7
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证VirtIO块设备、buffer cache和bitmap
+kernel:
+  organization: 单体式教学内核
+  execution: 进程上下文中同步发起块I/O并睡眠等待完成
+  protection: 内核页表映射VirtIO MMIO
+  communication: VirtIO descriptor ring和buffer cache
+  resource_model: 磁盘块由bitmap管理，内存块由LRU cache管理
+required_mechanisms:
+  - VirtIO块读写
+  - DMA地址翻译
+  - PLIC磁盘中断
+  - buffer cache LRU
+  - 块位图
+  - mkfs镜像
+composition_invariants:
+  - 磁盘中断必须完成claim
+  - buffer同一块唯一实例
+  - 位图更新写回磁盘
+non_goals:
+  - inode目录和文件路径
+hardware_port:
+  board: QEMU virt
+  boot: disk.img通过-drive加载
+  console: 测试输出
+  interrupt: VirtIO IRQ 1

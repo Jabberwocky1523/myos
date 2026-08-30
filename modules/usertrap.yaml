@@ -1,0 +1,221 @@
+id: kernel/usertrap
+module: kernel/usertrap
+purpose: 在U-mode和S-mode之间保存用户状态、处理ecall并安全返回。
+owns:
+  - src/kernel/trap/trap_user.c
+  - src/kernel/trap/trampoline.S
+  - src/user/initcode.c
+  - src/user/sys.h
+  - src/user/syscall_arch.h
+  - src/user/syscall_num.h
+functions:
+  - name: trap_user_handler
+    comment:
+      purpose: '在user_vector()里面调用；用户态trap处理的核心逻辑；参考 xv6: kernel/trap.c usertrap()。'
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+      - 调用者必须满足源码assert检查的锁、类型或状态条件。
+    post:
+      - '在user_vector()里面调用；用户态trap处理的核心逻辑；参考 xv6: kernel/trap.c usertrap()。'
+    errors:
+      - 检测到不可恢复的非法状态或资源错误时，源码会调用panic终止当前执行流。
+      - 源码断言不成立时触发assert诊断。
+  - name: trap_user_return
+    comment:
+      purpose: '调用user_return()；内核态返回用户态；参考 xv6: kernel/trap.c usertrapret()。'
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 内核态返回用户态。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - '调用user_return()；内核态返回用户态；参考 xv6: kernel/trap.c usertrapret()。'
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: trampoline
+    comment:
+      purpose: trampoline会作为一个物理页的起点地址。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - trampoline会作为一个物理页的起点地址。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: user_vector
+    comment:
+      purpose: 触发用户态trap后的处理过程。
+      input:
+        - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
+      output: 无直接返回值；通过修改模块状态、寄存器、内存或输出参数产生结果。
+    pre:
+      - 调用时必须满足模块初始化顺序和当前执行上下文要求。
+    post:
+      - 触发用户态trap后的处理过程。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: user_return
+    comment:
+      purpose: 用户态trap处理完成后返回。
+      input:
+        - trapframe（寄存器参数）：user_return使用的trapframe参数。
+        - pagetable（寄存器参数）：待切换或访问的页表。
+      output: 用户态trap处理完成后返回。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 用户态trap处理完成后返回。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall0
+    comment:
+      purpose: 实现__syscall0在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall0在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall1
+    comment:
+      purpose: 实现__syscall1在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall1在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall2
+    comment:
+      purpose: 实现__syscall2在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+        - b（long）：按RISC-V ABI传递的系统调用参数。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall2在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall3
+    comment:
+      purpose: 实现__syscall3在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+        - b（long）：按RISC-V ABI传递的系统调用参数。
+        - c（long）：按RISC-V ABI传递的系统调用参数。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall3在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall4
+    comment:
+      purpose: 实现__syscall4在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+        - b（long）：按RISC-V ABI传递的系统调用参数。
+        - c（long）：按RISC-V ABI传递的系统调用参数。
+        - d（long）：按RISC-V ABI传递的系统调用参数。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall4在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall5
+    comment:
+      purpose: 实现__syscall5在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+        - b（long）：按RISC-V ABI传递的系统调用参数。
+        - c（long）：按RISC-V ABI传递的系统调用参数。
+        - d（long）：按RISC-V ABI传递的系统调用参数。
+        - e（long）：按RISC-V ABI传递的系统调用参数。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall5在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+  - name: __syscall6
+    comment:
+      purpose: 实现__syscall6在当前模块中的代码行为。
+      input:
+        - n（long）：数量、长度或编号，具体含义由函数上下文决定。
+        - a（long）：按RISC-V ABI传递的系统调用参数。
+        - b（long）：按RISC-V ABI传递的系统调用参数。
+        - c（long）：按RISC-V ABI传递的系统调用参数。
+        - d（long）：按RISC-V ABI传递的系统调用参数。
+        - e（long）：按RISC-V ABI传递的系统调用参数。
+        - f（long）：待操作的文件对象。
+      output: 返回long类型的状态值或计算结果；具体取值由源码中的返回分支定义。
+    pre:
+      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
+    post:
+      - 实现__syscall6在当前模块中的代码行为。
+    errors:
+      - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
+interface:
+  - name: trap_user_handler
+    pre:
+      - 当前进程有合法trapframe且来自U-mode
+    post:
+      - ecall推进sepc并完成helloworld分发，随后准备返回
+    errors:
+      - 未知异常输出scause/sepc/stval并终止当前进程
+  - name: trap_user_return
+    pre:
+      - trapframe和用户页表有效
+    post:
+      - SPP清零、SPIE置位，trampoline恢复寄存器并sret
+    errors:
+      - 状态无效时不执行sret
+properties:
+  - id: ecall-advance
+    text: 用户ecall返回地址增加4。
+  - id: trampoline-boundary
+    text: 用户trap入口位于TRAMPOLINE并在切换页表后恢复用户寄存器。
+state:
+  stage: user-mode-entry
+  owned_state:
+    - user trapframe、user sepc、satp字段
+  resource_lifetime:
+    - trapframe随进程存活
+preconditions:
+  - kernel trap入口已安装
+postconditions:
+  - initcode在U-mode继续执行
+invariants:
+  - id: privilege-clear
+    text: 返回用户态前必须清除SPP并设置SPIE。
+dependencies:
+  - kernel/process
+  - kernel/memory
+  - kernel/trap
+rely:
+  - RISC-V sret语义和TRAMPOLINE映射
+guarantee:
+  - 用户代码不能直接绕过trapframe进入内核
+algorithm_intent: 使用trampoline在用户页表和内核页表之间切换，并由C处理用户trap。

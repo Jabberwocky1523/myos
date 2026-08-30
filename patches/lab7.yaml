@@ -1,0 +1,77 @@
+id: lab7-block-storage
+transition: lab6 -> lab7
+reason: 在进程睡眠基础上建立块设备、缓存和磁盘空间管理。
+changes:
+- kernel/block-device
+- kernel/buffer-bitmap
+- kernel/process
+- kernel/trap
+- kernel/memory
+- toolchain
+required_updates:
+- target: main
+  module: kernel/boot
+  change: 在启动阶段初始化VirtIO磁盘设备。
+  reason: 后续文件系统初始化需要块设备已经完成基础协商。
+- target: kvm_init、vm_getpte
+  module: kernel/memory
+  change: 映射VirtIO MMIO，并允许pgtbl为空时使用内核页表完成DMA地址转换。
+  reason: 块设备驱动需要访问MMIO，并把内核虚拟地址转换为DMA物理地址。
+- target: plic_init、plic_inithart、external_interrupt_handler
+  module: kernel/trap
+  change: 启用VirtIO IRQ，并在外部中断分发中调用磁盘完成处理。
+  reason: 磁盘请求完成依赖PLIC中断唤醒等待进程。
+- target: proc_return
+  module: kernel/process
+  change: 在首次拥有可睡眠进程上下文时执行fs_init。
+  reason: 文件系统初始化包含可能睡眠的磁盘I/O，不能放在无进程上下文的早期main中。
+- target: proc_sleep、proc_wakeup、proc_try_wakeup
+  module: kernel/process
+  change: 调整睡眠与唤醒路径以支持块设备请求等待和中断完成通知。
+  reason: 同步磁盘读写需要可靠的wait/wakeup配对。
+- target: Makefile、mkfs、disk.img
+  module: toolchain
+  change: 编译文件系统与VirtIO对象，使用mkfs生成当前布局的disk.img，并把该镜像作为VirtIO块设备挂载到QEMU运行目标。
+  reason: 块缓存、bitmap和磁盘中断只有连接到与内核结构一致的持久化镜像后才能构成可复现的存储路径。
+new_invariants:
+- 同一磁盘块只能有一个buffer
+- 每个非零设备claim必须complete
+- bitmap更新必须持久化
+- QEMU挂载的disk.img必须由当前阶段mkfs和同一份文件系统布局定义生成
+verification:
+- id: superblock-read
+  entry: initcode test-1 / fs_init
+  setup:
+  - 使用mkfs生成disk.img并由QEMU挂载。
+  steps:
+  - 启动到首个可睡眠进程上下文并调用fs_init。
+  - 读取并打印superblock布局。
+  expected:
+  - magic、block size、bitmap、inode和data区域边界与mkfs生成值一致。
+  - VirtIO请求完成后等待进程被唤醒。
+  - 文件系统初始化结束后用户输出仍可执行。
+- id: bitmap-allocation-persistence
+  entry: initcode test-2
+  setup:
+  - 选择bitmap场景并使用20个block和20个inode。
+  steps:
+  - 批量分配block，刷新buffer并查看data bitmap。
+  - 分两批释放block，每次刷新并查看bitmap。
+  - 批量分配和释放inode并检查inode bitmap。
+  expected:
+  - 分配位置对应位被置1，释放后恢复0。
+  - 刷新后再次读取磁盘仍得到相同bitmap状态。
+  - 重复分配不会返回仍处于占用状态的编号。
+- id: buffer-read-write-lru
+  entry: initcode test-3
+  setup:
+  - 选择buffer场景，使用BLOCK_BASE及连续块并设置N_BUFFER为8。
+  steps:
+  - 通过buffer写入ABCDEFGH并读回。
+  - 获取超过缓存容量的连续块，观察活跃/非活跃链表。
+  - 按不同顺序put、再次get并执行flush。
+  expected:
+  - 读回内容与写入内容一致。
+  - 同一block在缓存中只有一个buffer实例。
+  - LRU顺序随get/put变化，flush只释放非活跃且无引用的buffer数据页。
+  - 磁盘中断claim均被complete，等待者最终被唤醒。
