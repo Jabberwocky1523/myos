@@ -1,0 +1,33 @@
+system:
+  name: xv6实验系统-Lab2
+  language: C与RISC-V汇编
+  isa: RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware:
+    board: QEMU virt
+    status: 已验证物理页分配与内核页表
+kernel:
+  organization: 单体式教学内核
+  execution: 在Lab1启动环境上初始化内存并激活内核页表
+  protection: Sv39内核地址转换
+  communication: UART与内核直接映射
+  resource_model: 物理页由freelist独占管理
+required_mechanisms:
+  - 物理页分配与释放
+  - freelist poison
+  - 三层Sv39页表
+  - 内核text/data/设备映射
+  - satp激活
+composition_invariants:
+  - kinit先于kvminit
+  - 空闲页不与已分配页重叠
+  - 内核映射不设置PTE_U
+non_goals:
+  - 用户页表、缺页处理、进程和文件系统
+hardware_port:
+  board: QEMU virt
+  boot: -bios none
+  console: UART 0x10000000
+  interrupt: PLIC保留映射但本阶段不分发
