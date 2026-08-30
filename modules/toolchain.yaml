@@ -1,0 +1,36 @@
+id: toolchain
+module: toolchain
+purpose: 用Makefile将C、汇编和链接脚本投影为可启动内核。
+owns:
+  - Makefile
+  - common.mk
+functions: []
+interface:
+  - name: build
+    pre:
+      - POSIX make/sh和riscv64-linux-gnu工具链存在
+    post:
+      - 生成kernel-qemu.elf
+    errors:
+      - 编译、链接或工具链失败时停止
+properties:
+  - id: freestanding-build
+    text: 编译使用freestanding、medany、无标准库配置。
+state:
+  stage: build
+  owned_state:
+    - target/kernel目标文件
+  resource_lifetime:
+    - target目录可由clean删除
+preconditions:
+  - 工具链前缀与common.mk一致
+postconditions:
+  - QEMU可加载链接后的内核
+invariants:
+  - 链接入口和内核地址由kernel.ld唯一决定
+dependencies: []
+rely:
+  - GCC、binutils、QEMU
+guarantee:
+  - 为boot提供可重复构建命令
+algorithm_intent: 使用wildcard收集内核源文件并按目录映射目标文件。
