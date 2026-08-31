@@ -131,8 +131,31 @@ postconditions:
 invariants:
   - id: one-page-initcode
     text: initcode字节数必须大于0且不超过PAGE_SIZE。
-  - id: syscall-abi
-    text: 调用号从0递增.
+  - id: system-abi
+    text: syscall_num.h中的系统调用号必须与参考实现和内核分发表完全一致，禁止自行编号。
+    syscall_numbers:
+      SYS_brk: 1
+      SYS_mmap: 2
+      SYS_munmap: 3
+      SYS_fork: 4
+      SYS_wait: 5
+      SYS_exit: 6
+      SYS_sleep: 7
+      SYS_getpid: 8
+      SYS_exec: 9
+      SYS_open: 10
+      SYS_close: 11
+      SYS_read: 12
+      SYS_write: 13
+      SYS_lseek: 14
+      SYS_dup: 15
+      SYS_fstat: 16
+      SYS_get_dentries: 17
+      SYS_mkdir: 18
+      SYS_chdir: 19
+      SYS_print_cwd: 20
+      SYS_link: 21
+      SYS_unlink: 22
 dependencies:
   - toolchain
 rely:
