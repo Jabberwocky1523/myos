@@ -20,13 +20,17 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
   if (pgtbl == NULL || va >= VA_MAX)
     return NULL;
 
-  for (int level = 2; level > 0; --level) {
+  for (int level = 2; level > 0; --level)
+  {
     pte_t *pte = &pgtbl[VA_TO_VPN(level, va)];
-    if ((*pte & PTE_V) != 0) {
+    if ((*pte & PTE_V) != 0)
+    {
       if (pte_is_leaf(*pte))
         panic("leaf encountered while walking page table");
       pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
-    } else {
+    }
+    else
+    {
       if (!alloc)
         return NULL;
       pgtbl_t next = (pgtbl_t)pmem_alloc(true);
@@ -45,7 +49,8 @@ void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm)
     panic("vm_mappages arguments");
 
   uint64 mapped_len = PGROUNDUP(len);
-  for (uint64 offset = 0; offset < mapped_len; offset += PAGE_SIZE) {
+  for (uint64 offset = 0; offset < mapped_len; offset += PAGE_SIZE)
+  {
     pte_t *pte = vm_getpte(pgtbl, va + offset, true);
     if (pte == NULL || (*pte & PTE_V) != 0)
       panic("vm_mappages remap");
@@ -59,7 +64,8 @@ void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit)
     panic("vm_unmappages arguments");
 
   uint64 mapped_len = PGROUNDUP(len);
-  for (uint64 offset = 0; offset < mapped_len; offset += PAGE_SIZE) {
+  for (uint64 offset = 0; offset < mapped_len; offset += PAGE_SIZE)
+  {
     pte_t *pte = vm_getpte(pgtbl, va + offset, false);
     if (pte == NULL || (*pte & PTE_V) == 0 || !pte_is_leaf(*pte))
       panic("vm_unmappages missing mapping");
@@ -96,7 +102,8 @@ void kvm_inithart(void)
 
 static void vm_print_level(pgtbl_t pgtbl, int level)
 {
-  for (int i = 0; i < 512; ++i) {
+  for (int i = 0; i < 512; ++i)
+  {
     pte_t pte = pgtbl[i];
     if ((pte & PTE_V) == 0)
       continue;

@@ -9,7 +9,7 @@
 #endif
 
 #define CLINT_MTIMECMP(hart) (0x02004000UL + 8UL * (hart))
-#define CLINT_MTIME           0x0200bff8UL
+#define CLINT_MTIME 0x0200bff8UL
 
 static uint64 timer_scratch[MAX_HARTS][5] __attribute__((aligned(16)));
 static spinlock_t ticks_lock;

@@ -22,15 +22,19 @@ void trap_kernel_inithart(void)
 void timer_interrupt_handler(void)
 {
   timer_update();
+  printf("cpu%d timer interrupt: ticks=%x\n", r_tp(), timer_get_ticks());
 }
 
 void external_interrupt_handler(void)
 {
   int irq = plic_claim();
 
-  if (irq == UART0_IRQ) {
+  if (irq == UART0_IRQ)
+  {
     uart_intr();
-  } else if (irq != 0) {
+  }
+  else if (irq != 0)
+  {
     printf("unexpected PLIC irq %d\n", irq);
   }
 
@@ -42,14 +46,17 @@ void trap_kernel_handler(void)
 {
   uint64 scause = r_scause();
 
-  if ((scause & SCAUSE_INTERRUPT) != 0) {
+  if ((scause & SCAUSE_INTERRUPT) != 0)
+  {
     uint64 code = scause & ~SCAUSE_INTERRUPT;
-    if (code == SCAUSE_S_SOFTWARE) {
+    if (code == SCAUSE_S_SOFTWARE)
+    {
       w_sip(r_sip() & ~SIP_SSIP);
       timer_interrupt_handler();
       return;
     }
-    if (code == SCAUSE_S_EXTERNAL) {
+    if (code == SCAUSE_S_EXTERNAL)
+    {
       external_interrupt_handler();
       return;
     }

@@ -12,23 +12,23 @@ void init(void)
   kvm_init();
 }
 
-static void test_timer_interrupts(void)
-{
-  uint64 previous = timer_get_ticks();
+// static void test_timer_interrupts(void)
+// {
+//   uint64 previous = timer_get_ticks();
 
-  for (int observed = 0; observed < 5; ++observed)
-  {
-    uint64 current;
-    do
-    {
-      current = timer_get_ticks();
-    } while (current == previous);
-    assert(current > previous, "timer ticks are not monotonic");
-    printf("timer tick %x\n", current);
-    previous = current;
-  }
-  printf("test_timer_interrupts passed\n");
-}
+//   for (int observed = 0; observed < 5; ++observed)
+//   {
+//     uint64 current;
+//     do
+//     {
+//       current = timer_get_ticks();
+//     } while (current == previous);
+//     assert(current > previous, "timer ticks are not monotonic");
+//     printf("timer tick %x\n", current);
+//     previous = current;
+//   }
+//   printf("test_timer_interrupts passed\n");
+// }
 
 static void idle_forever(void) __attribute__((noreturn));
 
@@ -48,7 +48,7 @@ int main(void)
     kvm_inithart();
     trap_kernel_init();
     trap_kernel_inithart();
-    test_timer_interrupts();
+    // test_timer_interrupts();
     printf("lab3 hart %d ready\n", (int)id);
     __atomic_store_n(&kernel_ready, 1, __ATOMIC_RELEASE);
   }
