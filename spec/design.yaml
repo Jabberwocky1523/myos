@@ -5,6 +5,10 @@ system:
 machine:
   qemu:
     model: virt
+    harts:
+      default: 2
+      configurable: true
+      policy: 所有实验均须允许通过构建参数选择hart数量，未指定时启动2个hart。
   hardware:
     board: QEMU virt；真实板卡未在本实验中验证
     status: 已验证机器启动、串口输出和锁保护打印
