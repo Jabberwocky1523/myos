@@ -1,5 +1,6 @@
 #include "method.h"
 #include "../lib/method.h"
+#include "../arch/method.h"
 
 #define SATP_SV39 (8UL << 60)
 #define MAKE_SATP(pgtbl) (SATP_SV39 | ((uint64)(pgtbl) >> 12))
@@ -88,9 +89,9 @@ void kvm_inithart(void)
   if (kernel_pgtbl == NULL)
     panic("kernel page table is not initialized");
   uint64 satp = MAKE_SATP(kernel_pgtbl);
-  asm volatile("sfence.vma zero, zero" ::: "memory");
-  asm volatile("csrw satp, %0" : : "r"(satp) : "memory");
-  asm volatile("sfence.vma zero, zero" ::: "memory");
+  sfence_vma();
+  w_satp(satp);
+  sfence_vma();
 }
 
 static void vm_print_level(pgtbl_t pgtbl, int level)

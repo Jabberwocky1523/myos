@@ -2,6 +2,7 @@
 
 #include "method.h"
 #include "../lock/method.h"
+#include "../arch/method.h"
 
 static spinlock_t print_lock;
 static const char digits[] = "0123456789abcdef";
@@ -117,7 +118,7 @@ void printf(const char *fmt, ...)
 
 void panic(const char *s)
 {
-  asm volatile("csrci sstatus, 2" ::: "memory");
+  intr_off();
   uart_putc_sync('p'); uart_putc_sync('a'); uart_putc_sync('n');
   uart_putc_sync('i'); uart_putc_sync('c'); uart_putc_sync(':');
   uart_putc_sync(' ');

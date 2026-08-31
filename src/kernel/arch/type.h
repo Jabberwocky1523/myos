@@ -3,7 +3,8 @@
 
 #include "../lib/type.h"
 
-#define MAX_HARTS 8
+#define NCPU 2
+#define MAX_HARTS NCPU
 
 #define MSTATUS_MIE       (1UL << 3)
 #define MSTATUS_MPP_MASK  (3UL << 11)
@@ -24,38 +25,4 @@
 #define SCAUSE_S_TIMER    5UL
 #define SCAUSE_S_EXTERNAL 9UL
 
-static inline uint64 csr_read_sstatus(void)
-{
-  uint64 value;
-  asm volatile("csrr %0, sstatus" : "=r"(value));
-  return value;
-}
-
-static inline void csr_write_sstatus(uint64 value)
-{
-  asm volatile("csrw sstatus, %0" : : "r"(value) : "memory");
-}
-
-static inline uint64 csr_read_scause(void)
-{
-  uint64 value;
-  asm volatile("csrr %0, scause" : "=r"(value));
-  return value;
-}
-
-static inline uint64 csr_read_sepc(void)
-{
-  uint64 value;
-  asm volatile("csrr %0, sepc" : "=r"(value));
-  return value;
-}
-
-static inline uint64 csr_read_stval(void)
-{
-  uint64 value;
-  asm volatile("csrr %0, stval" : "=r"(value));
-  return value;
-}
-
 #endif
-

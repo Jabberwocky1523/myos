@@ -1,10 +1,11 @@
 #include "method.h"
 #include "../arch/type.h"
+#include "../arch/method.h"
 #include "../lib/method.h"
 
 void trap_kernel_init(void)
 {
-  asm volatile("csrw stvec, %0" : : "r"((uint64)kernel_vector));
+  w_stvec((uint64)kernel_vector);
   timer_create();
   plic_init();
   uart_enable_rx_interrupt();
@@ -12,10 +13,10 @@ void trap_kernel_init(void)
 
 void trap_kernel_inithart(void)
 {
-  asm volatile("csrw stvec, %0" : : "r"((uint64)kernel_vector));
+  w_stvec((uint64)kernel_vector);
   plic_inithart();
-  asm volatile("csrs sie, %0" : : "r"(SIE_SSIE | SIE_SEIE));
-  asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SIE) : "memory");
+  w_sie(r_sie() | SIE_SSIE | SIE_SEIE);
+  intr_on();
 }
 
 void timer_interrupt_handler(void)
@@ -39,12 +40,12 @@ void external_interrupt_handler(void)
 
 void trap_kernel_handler(void)
 {
-  uint64 scause = csr_read_scause();
+  uint64 scause = r_scause();
 
   if ((scause & SCAUSE_INTERRUPT) != 0) {
     uint64 code = scause & ~SCAUSE_INTERRUPT;
     if (code == SCAUSE_S_SOFTWARE) {
-      asm volatile("csrc sip, %0" : : "r"(SIP_SSIP) : "memory");
+      w_sip(r_sip() & ~SIP_SSIP);
       timer_interrupt_handler();
       return;
     }
@@ -55,7 +56,6 @@ void trap_kernel_handler(void)
   }
 
   printf("unexpected kernel trap: scause=%x sepc=%x stval=%x\n",
-         scause, csr_read_sepc(), csr_read_stval());
+         scause, r_sepc(), r_stval());
   panic("unexpected kernel trap");
 }
-

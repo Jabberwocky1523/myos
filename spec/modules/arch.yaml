@@ -1,0 +1,506 @@
+id: kernel/arch
+module: kernel/arch
+purpose: 提供RISC-V架构基础类型、CSR访问、CPU上下文访问和页表/TLB控制接口。
+owns:
+  - src/kernel/arch/type.h
+  - src/kernel/arch/method.h
+  - src/kernel/arch/mod.h
+constraints:
+  - CSR访问必须运行在目标RISC-V允许的特权级。
+  - 页表切换后必须调用sfence_vma刷新TLB。
+functions:
+  - name: r_mhartid
+    comment:
+      purpose: 提供r_mhartid架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_mstatus
+    comment:
+      purpose: 提供r_mstatus架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mstatus
+    comment:
+      purpose: 提供w_mstatus架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mepc
+    comment:
+      purpose: 提供w_mepc架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_sstatus
+    comment:
+      purpose: 提供r_sstatus架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_sstatus
+    comment:
+      purpose: 提供w_sstatus架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_sip
+    comment:
+      purpose: 提供r_sip架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_sip
+    comment:
+      purpose: 提供w_sip架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_sie
+    comment:
+      purpose: 提供r_sie架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_sie
+    comment:
+      purpose: 提供w_sie架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_mie
+    comment:
+      purpose: 提供r_mie架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mie
+    comment:
+      purpose: 提供w_mie架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_sepc
+    comment:
+      purpose: 提供w_sepc架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_sepc
+    comment:
+      purpose: 提供r_sepc架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_medeleg
+    comment:
+      purpose: 提供r_medeleg架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_medeleg
+    comment:
+      purpose: 提供w_medeleg架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_mideleg
+    comment:
+      purpose: 提供r_mideleg架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mideleg
+    comment:
+      purpose: 提供w_mideleg架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_stvec
+    comment:
+      purpose: 提供w_stvec架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_stvec
+    comment:
+      purpose: 提供r_stvec架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mtvec
+    comment:
+      purpose: 提供w_mtvec架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_satp
+    comment:
+      purpose: 提供w_satp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_satp
+    comment:
+      purpose: 提供r_satp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_sscratch
+    comment:
+      purpose: 提供w_sscratch架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mscratch
+    comment:
+      purpose: 提供w_mscratch架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_scause
+    comment:
+      purpose: 提供r_scause架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_stval
+    comment:
+      purpose: 提供r_stval架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_mcounteren
+    comment:
+      purpose: 提供w_mcounteren架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_mcounteren
+    comment:
+      purpose: 提供r_mcounteren架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_time
+    comment:
+      purpose: 提供r_time架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: intr_on
+    comment:
+      purpose: 提供intr_on架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: intr_off
+    comment:
+      purpose: 提供intr_off架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: intr_get
+    comment:
+      purpose: 提供intr_get架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_sp
+    comment:
+      purpose: 提供r_sp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_tp
+    comment:
+      purpose: 提供r_tp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_tp
+    comment:
+      purpose: 提供w_tp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: r_ra
+    comment:
+      purpose: 提供r_ra架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: sfence_vma
+    comment:
+      purpose: 提供sfence_vma架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_pmpcfg0
+    comment:
+      purpose: 提供w_pmpcfg0架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_pmpaddr0
+    comment:
+      purpose: 提供w_pmpaddr0架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+  - name: w_stimecmp
+    comment:
+      purpose: 提供w_stimecmp架构接口。
+      input:
+        - 按寄存器接口约定传入参数；无参数接口依赖当前CPU状态。
+      output: 返回寄存器值或完成状态更新；写入接口无直接返回值。
+    pre:
+      - 调用处于RISC-V目标环境且满足相应特权级。
+    post:
+      - 完成对应CSR、CPU上下文或地址转换操作。
+    errors:
+      - 源码未定义独立错误返回；非法特权级由硬件处理。
+constants:
+  - NCPU: 最大CPU数量，定义为2。
+  - RISC-V状态位、异常编码和中断使能位宏供其他内核模块使用。

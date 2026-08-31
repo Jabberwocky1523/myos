@@ -5,8 +5,8 @@ include common.mk
 HARTS ?= 2
 TIMER_INTERVAL ?= 1000000
 
-ifneq ($(filter $(HARTS),1 2 3 4 5 6 7 8),$(HARTS))
-$(error HARTS must be an integer from 1 to 8)
+ifneq ($(filter $(HARTS),1 2),$(HARTS))
+$(error HARTS must be 1 or 2)
 endif
 
 CFLAGS += -DHART_COUNT=$(HARTS) -DTIMER_INTERVAL=$(TIMER_INTERVAL)
@@ -17,8 +17,10 @@ C_SRCS := $(wildcard src/kernel/*.c) \
 	$(wildcard src/kernel/lib/*.c) \
 	$(wildcard src/kernel/lock/*.c) \
 	$(wildcard src/kernel/mem/*.c) \
+	$(wildcard src/kernel/arch/*.c) \
 	$(wildcard src/kernel/trap/*.c)
 S_SRCS := $(wildcard src/kernel/boot/*.S) \
+	$(wildcard src/kernel/arch/*.S) \
 	$(wildcard src/kernel/trap/*.S)
 OBJS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SRCS)) \
 	$(patsubst src/%.S,$(BUILD_DIR)/%.o,$(S_SRCS))
@@ -53,4 +55,3 @@ run: kernel-qemu.elf
 
 clean:
 	rm -rf target kernel-qemu.elf
-

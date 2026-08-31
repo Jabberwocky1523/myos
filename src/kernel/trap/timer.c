@@ -1,5 +1,6 @@
 #include "method.h"
 #include "../arch/type.h"
+#include "../arch/method.h"
 #include "../lib/method.h"
 #include "../lock/method.h"
 
@@ -17,7 +18,7 @@ static uint64 sys_ticks;
 void timer_init(void)
 {
   uint64 hart;
-  asm volatile("csrr %0, mhartid" : "=r"(hart));
+  hart = r_mhartid();
   if (hart >= MAX_HARTS)
     for (;;)
       asm volatile("wfi");
@@ -28,9 +29,9 @@ void timer_init(void)
 
   timer_scratch[hart][3] = (uint64)mtimecmp;
   timer_scratch[hart][4] = TIMER_INTERVAL;
-  asm volatile("csrw mscratch, %0" : : "r"(&timer_scratch[hart][0]));
-  asm volatile("csrw mtvec, %0" : : "r"((uint64)timer_vector));
-  asm volatile("csrs mie, %0" : : "r"(MIE_MTIE));
+  w_mscratch((uint64)&timer_scratch[hart][0]);
+  w_mtvec((uint64)timer_vector);
+  w_mie(r_mie() | MIE_MTIE);
 }
 
 void timer_create(void)
@@ -53,4 +54,3 @@ uint64 timer_get_ticks(void)
   spinlock_release(&ticks_lock);
   return ticks;
 }
-

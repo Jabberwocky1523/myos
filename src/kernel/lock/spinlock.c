@@ -1,40 +1,16 @@
 #include "method.h"
+#include "../arch/method.h"
 
 extern void panic(const char *s) __attribute__((noreturn));
-
-#define MAX_HARTS 8
-#define SSTATUS_SIE (1UL << 1)
 
 static uint32 interrupt_depth[MAX_HARTS];
 static bool interrupt_was_enabled[MAX_HARTS];
 
-uint64 hart_id(void)
-{
-  uint64 id;
-  asm volatile("mv %0, tp" : "=r"(id));
-  return id;
-}
-
-static uint64 read_sstatus(void)
-{
-  uint64 value;
-  asm volatile("csrr %0, sstatus" : "=r"(value));
-  return value;
-}
+uint64 hart_id(void) { return r_tp(); }
 
 static bool interrupts_enabled(void)
 {
-  return (read_sstatus() & SSTATUS_SIE) != 0;
-}
-
-static void interrupt_off(void)
-{
-  asm volatile("csrci sstatus, 2" ::: "memory");
-}
-
-static void interrupt_on(void)
-{
-  asm volatile("csrsi sstatus, 2" ::: "memory");
+  return intr_get();
 }
 
 void push_off(void)
@@ -42,7 +18,7 @@ void push_off(void)
   uint64 id = hart_id();
   bool old = interrupts_enabled();
 
-  interrupt_off();
+  intr_off();
   if (id >= MAX_HARTS)
     panic("hart id exceeds MAX_HARTS");
   if (interrupt_depth[id] == 0)
@@ -58,7 +34,7 @@ void pop_off(void)
     panic("pop_off");
   interrupt_depth[id]--;
   if (interrupt_depth[id] == 0 && interrupt_was_enabled[id])
-    interrupt_on();
+    intr_on();
 }
 
 void spinlock_init(spinlock_t *lk, const char *name)
@@ -95,4 +71,3 @@ void spinlock_release(spinlock_t *lk)
   __sync_lock_release(&lk->locked);
   pop_off();
 }
-

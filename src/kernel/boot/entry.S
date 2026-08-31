@@ -2,7 +2,7 @@
 .globl _entry
 _entry:
         csrr a0, mhartid
-        li   t0, 8
+        li   t0, 2
         bgeu a0, t0, 2f
         li   t0, 4096
         addi t1, a0, 1

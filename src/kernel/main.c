@@ -34,6 +34,8 @@ static void idle_forever(void) __attribute__((noreturn));
 
 static void idle_forever(void)
 {
+  for (;;)
+    asm volatile("wfi");
 }
 
 int main(void)
@@ -58,6 +60,5 @@ int main(void)
     trap_kernel_inithart();
     printf("lab3 hart %d ready\n", (int)id);
   }
-  for (;;)
-    asm volatile("wfi");
+  idle_forever();
 }
