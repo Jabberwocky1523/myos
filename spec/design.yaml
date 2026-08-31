@@ -12,12 +12,6 @@ machine:
   hardware:
     board: QEMU virt；真实板卡未在本实验中验证
     status: 已验证机器启动、串口输出和锁保护打印
-kernel:
-  organization: 单体式教学内核
-  execution: QEMU通过entry.S进入机器模式，再转入监督者模式执行main
-  protection: 使用PMP允许监督者访问物理地址空间
-  communication: ns16550a UART串口
-  resource_model: 自旋锁保护共享打印状态
 required_mechanisms:
   - 机器模式早期入口与监督者模式切换
   - PMP全物理空间访问

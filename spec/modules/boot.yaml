@@ -75,8 +75,6 @@ preconditions:
 postconditions:
   - main开始执行并能够访问UART
 invariants:
-  - id: single-boot-hart
-    text: 只有hart 0进入当前实验主流程。
 dependencies:
   - toolchain
 rely:
