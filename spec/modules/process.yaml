@@ -270,6 +270,7 @@ dependencies:
   - kernel/memory
   - kernel/trap
   - kernel/lock
+  - user/initcode
 rely:
   - initcode ELF/字节数组和trampoline布局
 guarantee:
