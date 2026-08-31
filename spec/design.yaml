@@ -5,6 +5,10 @@ system:
 machine:
   qemu:
     model: virt
+    harts:
+      default: 2
+      configurable: true
+      policy: 所有实验均须允许通过构建参数选择hart数量，未指定时启动2个hart。
   hardware:
     board: QEMU virt
     status: 已验证物理页分配与内核页表
