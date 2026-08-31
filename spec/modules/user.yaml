@@ -131,6 +131,8 @@ postconditions:
 invariants:
   - id: one-page-initcode
     text: initcode字节数必须大于0且不超过PAGE_SIZE。
+  - id: syscall-abi
+    text: 调用号从0递增.
 dependencies:
   - toolchain
 rely:
