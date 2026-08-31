@@ -83,7 +83,7 @@ functions:
   - name: proc_make_first
     comment:
       purpose: '第一个用户态进程的创建；它的代码和数据位于initcode.h的initcode数组；第一个进程的用户地址空间布局:；trapoline   (1 page)；trapframe   (1 page)；ustack      (1
-        page)；.......；<--heap_top；code + data (1 page)；empty space (1 page) 最低的4096字节 不分配物理页，同时不可访问；注意: 用用户空间的地址映射需要标记 PTE_U；参考
+        page)；.......；<--heap_top；code + data (1 page)；empty space (1 page) 最低的4096字节 不分配物理页，同时不可访问；注意: 用用户空间的地址映射需要标记 PTE_U；完成首进程上下文初始化后，proc_make_first直接调用swtch切换到新进程；参考
         xv6: kernel/proc.c userinit() + allocproc()。'
       input:
         - 无显式参数；函数依赖当前CPU、进程或模块全局状态。
