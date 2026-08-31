@@ -285,6 +285,7 @@ dependencies:
   - kernel/usertrap
   - kernel/lock
   - kernel/timer
+  - user/initcode
 rely:
   - 时钟中断和swtch ABI
 guarantee:
