@@ -145,7 +145,6 @@
 ```
 
 
-预期结果见 `./picture/test-3.png`
 
 ```c
     /* fs_init in fs.c */
