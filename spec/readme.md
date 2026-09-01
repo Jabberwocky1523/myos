@@ -123,7 +123,7 @@
 	}
 	inode_print(ip_2, "big_data");
 
-	len = inode_read_data(ip_1, cut_len * 10000 - 8, 8, big_dst, false);
+	len = inode_read_data(ip_2, cut_len * 10000 - 8, 8, big_dst, false);
 	assert(len == 8, "read fail 2");
 	printf("read data: %s\n", big_dst);
 
