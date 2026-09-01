@@ -1,10 +1,6 @@
 id: toolchain
 module: toolchain
 purpose: 用Makefile将C、汇编和链接脚本投影为可启动内核。
-applicability:
-  inherited_from: lab5
-  applies_to: lab9
-  policy: 保留-O1、-freorder-functions和-fno-omit-frame-pointer；若修改这些选项，必须同时调整用户程序入口装载方式并重新验证大栈缺页顺序。
 owns:
   - Makefile
   - common.mk
