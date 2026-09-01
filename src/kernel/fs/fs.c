@@ -122,6 +122,8 @@ void fs_init(void)
   inode_put(ip_5);
 
   printf("============= test end =============\n");
+  while (1)
+    ;
 }
 
 /* Transfer one whole block between disk and a kernel buffer. */

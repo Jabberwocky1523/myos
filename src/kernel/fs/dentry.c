@@ -68,16 +68,13 @@ int dentry_create(inode_t *ip, uint32 inode_num, char *name)
     child = inode_get(inode_num);
     if (child == NULL)
       return -1;
-    inode_lock(child);
     if (child->disk_info.nlink == 0xffffU)
     {
-      inode_unlock(child);
       inode_put(child);
       return -1;
     }
     child->disk_info.nlink++;
     inode_rw(child->inode_num, &child->disk_info, true);
-    inode_unlock(child);
     inode_put(child);
   }
 
@@ -97,10 +94,8 @@ int dentry_create(inode_t *ip, uint32 inode_num, char *name)
       child = inode_get(inode_num);
       if (child != NULL)
       {
-        inode_lock(child);
         child->disk_info.nlink--;
         inode_rw(child->inode_num, &child->disk_info, true);
-        inode_unlock(child);
         inode_put(child);
       }
     }
@@ -140,16 +135,13 @@ uint32 dentry_delete(inode_t *ip, char *name)
     inode_t *child = inode_get(inode_num);
     if (child == NULL)
       return INVALID_INODE_NUM;
-    inode_lock(child);
     if (child->disk_info.nlink == 0)
     {
-      inode_unlock(child);
       inode_put(child);
       return INVALID_INODE_NUM;
     }
     child->disk_info.nlink--;
     inode_rw(child->inode_num, &child->disk_info, true);
-    inode_unlock(child);
     inode_put(child);
     return inode_num;
   }

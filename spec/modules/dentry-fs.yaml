@@ -29,6 +29,7 @@ functions:
     pre:
       - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
       - 调用者必须满足源码assert检查的锁、类型或状态条件。
+      - 调用者已经lock了inode_num对应的inode对象。实现时不需要对其进行lock或者unlock操作,这需要调用者自己保证。
     post:
       - '在目录ip中寻找空闲槽位, 插入新的dentry；如果成功插入则返回这个目录项的偏移量(还需要更新size)；如果插入失败(没有空间/发生重名)返回-1；注意: 调用者需要持有ip->slk。'
     errors:
@@ -44,6 +45,7 @@ functions:
     pre:
       - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
       - 调用者必须满足源码assert检查的锁、类型或状态条件。
+      - 调用者已经lock了inode_num对应的inode对象。实现时不需要对其进行lock或者unlock操作,这需要调用者自己保证。
     post:
       - '在目录ip下删除名称为name的dentry, 返回它的inode_num；如果匹配失败或者遇到非法情况返回INVALID_INODE_NUM；注意: 调用者需要持有ip->slk。'
     errors:
