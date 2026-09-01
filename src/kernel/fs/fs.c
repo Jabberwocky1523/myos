@@ -55,49 +55,73 @@ void fs_init(void)
     inode_cache[i].inode_num = INVALID_INODE_NUM;
   }
   sb_print();
-
   printf("============= test begin =============\n\n");
-  inode_t *rooti, *ip_1, *ip_2;
+
+  inode_t *rooti, *ip_1, *ip_2, *ip_3, *ip_4, *ip_5;
+
+  /* 准备测试环境 */
 
   rooti = inode_get(ROOT_INODE);
-  inode_lock(rooti);
-  inode_print(rooti, "root");
-  inode_unlock(rooti);
-
-  /* 第一次查看bitmap */
-  bitmap_print(false);
-
   ip_1 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  ip_2 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  ip_2 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  ip_3 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+
+  inode_lock(rooti);
   inode_lock(ip_1);
   inode_lock(ip_2);
-  inode_dup(ip_2);
+  inode_lock(ip_3);
 
-  inode_print(ip_1, "dir");
-  inode_print(ip_2, "data");
+  if (dentry_create(rooti, ip_1->inode_num, "AABBC") == -1)
+    panic("dentry_create fail 1!");
+  if (dentry_create(ip_1, ip_2->inode_num, "aaabb") == -1)
+    panic("dentry_create fail 2!");
+  if (dentry_create(ip_2, ip_3->inode_num, "file.txt") == -1)
+    panic("dentry_create fail 3!");
+  char tmp1[] = "This is file context!";
+  char tmp2[32];
+  inode_write_data(ip_3, 0, sizeof(tmp1), tmp1, false);
 
-  /* 第二次查看bitmap */
-  bitmap_print(false);
+  inode_rw(rooti->inode_num, &rooti->disk_info, true);
+  inode_rw(ip_1->inode_num, &ip_1->disk_info, true);
+  inode_rw(ip_2->inode_num, &ip_2->disk_info, true);
 
-  ip_1->disk_info.nlink = 0;
-  ip_2->disk_info.nlink = 0;
+  inode_unlock(rooti);
   inode_unlock(ip_1);
   inode_unlock(ip_2);
+  inode_unlock(ip_3);
+  inode_put(rooti);
   inode_put(ip_1);
   inode_put(ip_2);
+  inode_put(ip_3);
 
-  /* 第三次查看bitmap */
-  bitmap_print(false);
+  char *path = "///AABBC///aaabb/file.txt";
+  char name[256];
 
-  inode_put(ip_2);
+  ip_4 = path_to_inode(path);
+  if (ip_4 == NULL)
+    panic("invalid ip_4");
 
-  /* 第四次查看bitmap */
-  bitmap_print(false);
+  ip_5 = path_to_parent_inode(path, name);
+  if (ip_5 == NULL)
+    panic("invalid ip_5");
 
-  printf("============= test end =============\n\n");
+  printf("get a name = %s\n\n", name);
 
-  while (1)
-    ;
+  inode_lock(ip_4);
+  inode_lock(ip_5);
+
+  inode_print(ip_4, "file.txt");
+  inode_print(ip_5, "aaabb");
+
+  inode_read_data(ip_4, 0, 32, tmp2, false);
+  printf("read data: %s\n\n", tmp2);
+
+  inode_unlock(ip_4);
+  inode_unlock(ip_5);
+  inode_put(ip_4);
+  inode_put(ip_5);
+
+  printf("============= test end =============\n");
 }
 
 /* Transfer one whole block between disk and a kernel buffer. */

@@ -33,7 +33,6 @@ int dentry_create(inode_t *ip, uint32 inode_num, char *name)
   if (name_len == 0 || name_len >= DENTRY_NAME_SIZE ||
       inode_num >= superblock.ninodes)
     return -1;
-
   dentry_t entry;
   uint32 free_offset = INVALID_INODE_NUM;
   for (uint32 offset = 0;
@@ -52,8 +51,7 @@ int dentry_create(inode_t *ip, uint32 inode_num, char *name)
       return -1;
   }
 
-  uint32 offset = free_offset == INVALID_INODE_NUM ?
-                  ip->disk_info.size : free_offset;
+  uint32 offset = free_offset == INVALID_INODE_NUM ? ip->disk_info.size : free_offset;
   if (offset + sizeof(entry) > BLOCK_SIZE)
     return -1;
 
