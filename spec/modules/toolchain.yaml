@@ -1,6 +1,10 @@
 id: toolchain
 module: toolchain
 purpose: 用Makefile将C、汇编和链接脚本投影为可启动内核。
+applicability:
+  inherited_from: lab5
+  applies_to: lab8
+  policy: 保留-O1、-freorder-functions和-fno-omit-frame-pointer；若修改这些选项，必须同时调整用户程序入口装载方式并重新验证大栈缺页顺序。
 owns:
   - Makefile
   - common.mk
@@ -16,6 +20,8 @@ interface:
 properties:
   - id: freestanding-build
     text: 编译使用freestanding、medany、无标准库配置。
+  - id: optimization-and-user-stack-test
+    text: 全局使用-O1和-freorder-functions；-O1避免大用户栈数组在源码指定访问前产生栈底临时访存，-freorder-functions保证用户main仍被排列到固定入口0x1000。
 state:
   stage: build
   owned_state:
@@ -28,9 +34,12 @@ postconditions:
   - QEMU可加载链接后的内核
 invariants:
   - 链接入口和内核地址由kernel.ld唯一决定
+  - 用户initcode以0x1000作为实际首条指令，编译后的函数排列不得让辅助函数先于main占据该地址
+  - 保留-fno-omit-frame-pointer，并以-O1维持大栈测试从1页到2页再到5页的缺页顺序
 dependencies: []
 rely:
   - GCC、binutils、QEMU
 guarantee:
   - 为boot提供可重复构建命令
+  - 延续Lab5确定的编译优化和用户入口排列约束
 algorithm_intent: 使用wildcard收集内核源文件并按目录映射目标文件。
