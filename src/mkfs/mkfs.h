@@ -1,65 +1,101 @@
-#ifndef MYOS_MKFS_H
-#define MYOS_MKFS_H
+/* disk layout: [ super block | inode bitmap | inode | data bitmap | data ] */
 
-#include <stdint.h>
 #include <stdbool.h>
 
-#define BLOCK_SIZE 4096U
-#define FS_MAGIC 0x4d594f53U
-#define FS_NBLOCKS 1311787U
-#define FS_NINODES 65536U
-#define FS_INODE_SIZE 64U
-#define N_DIRECT_INDEX 10U
-#define N_INDIRECT_INDEX 2U
-#define N_INODE_INDEX 13U
-#define BLOCK_NUMS_PER_BLOCK (BLOCK_SIZE / sizeof(uint32_t))
-#define INODE_TYPE_NONE 0U
-#define INODE_TYPE_DIRECTORY 1U
-#define INODE_TYPE_FILE 2U
-#define DENTRY_NAME_SIZE 60U
-#define INVALID_INODE_NUM 0xffffffffU
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
 
-typedef struct superblock {
-  uint32_t magic;
-  uint32_t block_size;
-  uint32_t nblocks;
-  uint32_t ninodes;
-  uint32_t inode_bitmap_start;
-  uint32_t inode_bitmap_blocks;
-  uint32_t inode_start;
-  uint32_t inode_blocks;
-  uint32_t data_bitmap_start;
-  uint32_t data_bitmap_blocks;
-  uint32_t data_start;
-  uint32_t data_blocks;
-} superblock_t;
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-typedef struct inode_disk {
-  uint16_t type;
-  uint16_t major;
-  uint16_t minor;
-  uint16_t nlink;
-  uint32_t size;
-  uint32_t index[N_INODE_INDEX];
+/*------------------------关于超级块(super block)-------------------*/
+
+#define FS_MAGIC 0x4d594f53U // 魔数的预期值（与内核 type.h 保持一致）
+
+/* 超级块 */
+typedef struct super_block
+{
+  unsigned int magic_num;    // 用于标识文件系统类型
+  unsigned int block_size;   // 基本存储单位的大小 (字节)
+  unsigned int total_blocks; // 总共的块数量
+  unsigned int total_inodes; // 总共的inode数量
+
+  unsigned int inode_bitmap_firstblock; // inode_bitmap区域的起始块号
+  unsigned int inode_bitmap_blocks;     // inode_bitmap区域的块数量
+  unsigned int inode_firstblock;        // inode区域的起始块号
+  unsigned int inode_blocks;            // inode区域的块数量
+  unsigned int data_bitmap_firstblock;  // data_bitmap区域的起始块号
+  unsigned int data_bitmap_blocks;      // data_bitmap区域的块数量
+  unsigned int data_firstblock;         // data区域的起始块号
+  unsigned int data_blocks;             // data区域的块数量
+} super_block_t;
+
+/*------------------------关于索引节点(inode)---------------------*/
+
+/* type的可能取值（与内核 type.h 保持一致） */
+#define INODE_TYPE_NONE 0    // 无效类型
+#define INODE_TYPE_DIR 1     // inode管理结构化的目录数据
+#define INODE_TYPE_DATA 2    // inode管理无结构的流式数据
+#define INODE_TYPE_DIVICE 3  // inode对应虚拟设备(不管理数据)
+
+/* major和minor的默认取值(代表磁盘设备) */
+#define INODE_MAJOR_DEFAULT 1 // 默认的主设备号
+#define INODE_MINOR_DEFAULT 1 // 默认的次设备号
+
+/* index字段相关 */
+#define INODE_INDEX_1 (10)                            // 直接映射 (10个格子)
+#define INODE_INDEX_2 (10 + 2)                        // 一级间接映射 (2个格子)
+#define INODE_INDEX_3 (10 + 2 + 1)                    // 二级间接映射 (1个格子)
+#define INODE_BLOCK_INDEX_1 (10)                      // 直接映射 (40KB)
+#define INODE_BLOCK_INDEX_2 (10 + 2048)               // 一级间接映射 (8MB)
+#define INODE_BLOCK_INDEX_3 (10 + 2048 + 1024 * 1024) // 二级间接映射 (4GB)
+
+/*
+    关于单个文件的最大容量:
+
+    基于addrs进行计算, 单个文件最大可达 4GB + 8MB + 40KB
+    1. 10 * 4KB = 40KB
+    2. 2 * (4KB / 4B) * 4KB = 8MB
+    3. 1 * (4KB / 4B) * (4KB / 4B) * 4KB = 4GB
+
+    考虑到size是unsigned int类型, 文件需要小于4GB
+*/
+
+/* 索引节点(64 Byte) */
+typedef struct inode_disk
+{
+  short type;                        // 文件类型
+  short major;                       // 主设备号
+  short minor;                       // 次设备号
+  short nlink;                       // 链接数
+  unsigned int size;                 // 文件数据长度(字节)
+  unsigned int index[INODE_INDEX_3]; // 数据存储位置(10+2+1)
 } inode_disk_t;
 
-typedef struct dentry {
-  uint32_t inode_num;
-  char name[DENTRY_NAME_SIZE];
+/*------------------------关于目录项(dentry)---------------------*/
+
+#define MAXLEN_FILENAME 60           // 文件名的最大长度
+#define INVALID_INODE_NUM 0xFFFFFFFF // 无效inode_num
+
+/* 目录项(64 Byte) */
+typedef struct dentry
+{
+  unsigned int inode_num;     // 索引节点序号
+  char name[MAXLEN_FILENAME]; // 文件名
 } dentry_t;
 
-_Static_assert(sizeof(inode_disk_t) == FS_INODE_SIZE,
-               "on-disk inode must be 64 bytes");
-_Static_assert(sizeof(dentry_t) == 64,
-               "on-disk dentry must be 64 bytes");
+/*----------------------------其他定义---------------------------*/
 
-unsigned short xshort(unsigned short x);
-unsigned int xint(unsigned int x);
-void block_rw(unsigned int block_num, void *buf, bool write_it);
-void inode_rw(unsigned int inode_num, inode_disk_t *ip, bool write_it);
-unsigned int block_alloc(void);
-unsigned int inode_alloc(void);
-void inode_init(inode_disk_t *ip, short type, short major, short minor);
-void inode_append(inode_disk_t *ip, void *data, unsigned int len);
+// 文件系统常量定义
+#define BLOCK_SIZE 4096              // 块的大小与页面大小保持一致
+#define N_DATA_BLOCK (5 * 512 * 512) // 数据区域设为 5GB
+#define N_INODE (1 << 16)            // 文件数量上限设为 65536个
+#define ROOT_INODE_NUM 0             // 根目录的inode序号
 
-#endif
+// 辅助计算
+#define BIT_PER_BYTE (8)
+#define BIT_PER_BLOCK (BLOCK_SIZE * BIT_PER_BYTE)
+#define INODE_PER_BLOCK (BLOCK_SIZE / sizeof(inode_disk_t))
+#define DENTRY_PER_BLOCK (BLOCK_SIZE / sizeof(dentry_t))
+#define COUNT_BLOCKS(ele_num, ele_per_block) (((ele_num) + (ele_per_block) - 1) / (ele_per_block))

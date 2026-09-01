@@ -1,312 +1,296 @@
-#include "mkfs.h"
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <assert.h>
+#include "mkfs.h"
 
-static FILE *fs_image;
-static superblock_t superblock;
+static int disk_fd;              // 磁盘映像的文件描述符
+static super_block_t sb;         // 超级块
+static int global_inode_num = 0; // 全局的inode_num
+static int global_block_num = 0; // 全局的block_num
 
-/* Report a host I/O failure and terminate image construction. */
-static void fail(const char *message)
-{
-  perror(message);
-  exit(1);
-}
+static char bitmap_buf[BLOCK_SIZE]; // bitmap区域的读写缓冲 供block_alloc和inode_alloc使用
+static char inode_buf[BLOCK_SIZE];  // inode区域的读写缓冲 供inode_rw使用
+static char data_buf[BLOCK_SIZE];   // data区的读写缓冲 block_rw使用
 
-/* Write a complete block during early image initialization. */
-static void block_write(FILE *image, uint32_t block_num, const void *data)
-{
-  if (fseek(image, (long)block_num * BLOCK_SIZE, SEEK_SET) != 0)
-    fail("mkfs seek");
-  if (fwrite(data, BLOCK_SIZE, 1, image) != 1)
-    fail("mkfs write");
-}
+/*-------------------------关于小端序-------------------------*/
 
-/* Encode a 16-bit value in the filesystem's little-endian format. */
+// 转换成小端序
 unsigned short xshort(unsigned short x)
 {
-  unsigned short value;
-  unsigned char *bytes = (unsigned char *)&value;
-  bytes[0] = (unsigned char)x;
-  bytes[1] = (unsigned char)(x >> 8);
-  return value;
+  unsigned short y;
+  unsigned char *a = (unsigned char *)&y;
+  a[0] = x;
+  a[1] = x >> 8;
+  return y;
 }
 
-/* Encode a 32-bit value in the filesystem's little-endian format. */
+// 转换成小端序
 unsigned int xint(unsigned int x)
 {
-  unsigned int value;
-  unsigned char *bytes = (unsigned char *)&value;
-  bytes[0] = (unsigned char)x;
-  bytes[1] = (unsigned char)(x >> 8);
-  bytes[2] = (unsigned char)(x >> 16);
-  bytes[3] = (unsigned char)(x >> 24);
-  return value;
+  unsigned int y;
+  unsigned char *a = (unsigned char *)&y;
+  a[0] = x;
+  a[1] = x >> 8;
+  a[2] = x >> 16;
+  a[3] = x >> 24;
+  return y;
 }
 
-/* Read or write one complete filesystem block. */
+/*-------------------------磁盘区域读写能力-------------------------*/
+
+/* 读取/写回1个block */
 void block_rw(unsigned int block_num, void *buf, bool write_it)
 {
-  if (block_num >= superblock.nblocks ||
-      fseek(fs_image, (long)block_num * BLOCK_SIZE, SEEK_SET) != 0)
-    fail("mkfs block seek");
-  if (write_it)
+  if (lseek(disk_fd, BLOCK_SIZE * block_num, 0) != BLOCK_SIZE * block_num)
   {
-    if (fwrite(buf, BLOCK_SIZE, 1, fs_image) != 1)
-      fail("mkfs block write");
-    if (fflush(fs_image) != 0)
-      fail("mkfs flush");
+    perror("lseek");
+    exit(1);
   }
-  else if (fread(buf, BLOCK_SIZE, 1, fs_image) != 1)
-    fail("mkfs block read");
-}
 
-/* Read or write one inode table slot. */
-void inode_rw(unsigned int inode_num, inode_disk_t *ip, bool write_it)
-{
-  if (inode_num >= superblock.ninodes || ip == NULL)
-    fail("mkfs inode arguments");
-  uint32_t byte_offset = inode_num * sizeof(*ip);
-  uint32_t block_num = superblock.inode_start + byte_offset / BLOCK_SIZE;
-  uint32_t block_offset = byte_offset % BLOCK_SIZE;
-  uint8_t block[BLOCK_SIZE];
-  block_rw(block_num, block, false);
   if (write_it)
   {
-    memcpy(block + block_offset, ip, sizeof(*ip));
-    block_rw(block_num, block, true);
+    if (write(disk_fd, buf, BLOCK_SIZE) != BLOCK_SIZE)
+    {
+      perror("write");
+      exit(1);
+    }
   }
   else
-    memcpy(ip, block + block_offset, sizeof(*ip));
-}
-
-/* Allocate the first free data block and persist its bitmap bit. */
-unsigned int block_alloc(void)
-{
-  uint8_t bitmap[BLOCK_SIZE];
-  uint32_t offset = 0;
-  for (uint32_t block = 0; block < superblock.data_bitmap_blocks; ++block)
   {
-    block_rw(superblock.data_bitmap_start + block, bitmap, false);
-    uint32_t valid = superblock.data_blocks - offset;
-    if (valid > BLOCK_SIZE * 8U)
-      valid = BLOCK_SIZE * 8U;
-    for (uint32_t bit = 0; bit < valid; ++bit)
+    if (read(disk_fd, buf, BLOCK_SIZE) != BLOCK_SIZE)
     {
-      uint8_t mask = (uint8_t)(1U << (bit & 7U));
-      if ((bitmap[bit >> 3] & mask) == 0)
-      {
-        bitmap[bit >> 3] |= mask;
-        block_rw(superblock.data_bitmap_start + block, bitmap, true);
-        return superblock.data_start + offset + bit;
-      }
+      perror("read");
+      exit(1);
     }
-    offset += valid;
   }
-  fail("mkfs no data blocks");
-  return 0;
 }
 
-/* Allocate the first free inode number and persist its bitmap bit. */
-unsigned int inode_alloc(void)
+/* 读取/写回1个inode */
+void inode_rw(unsigned int inode_num, inode_disk_t *ip, bool write_it)
 {
-  uint8_t bitmap[BLOCK_SIZE];
-  uint32_t offset = 0;
-  for (uint32_t block = 0; block < superblock.inode_bitmap_blocks; ++block)
+  unsigned int block_num = sb.inode_firstblock + inode_num / INODE_PER_BLOCK;
+  unsigned int byte_offset = (inode_num % INODE_PER_BLOCK) * sizeof(inode_disk_t);
+
+  if (write_it)
   {
-    block_rw(superblock.inode_bitmap_start + block, bitmap, false);
-    uint32_t valid = superblock.ninodes - offset;
-    if (valid > BLOCK_SIZE * 8U)
-      valid = BLOCK_SIZE * 8U;
-    for (uint32_t bit = 0; bit < valid; ++bit)
-    {
-      uint8_t mask = (uint8_t)(1U << (bit & 7U));
-      if ((bitmap[bit >> 3] & mask) == 0)
-      {
-        bitmap[bit >> 3] |= mask;
-        block_rw(superblock.inode_bitmap_start + block, bitmap, true);
-        return offset + bit;
-      }
-    }
-    offset += valid;
+    block_rw(block_num, inode_buf, false);
+    memcpy(inode_buf + byte_offset, ip, sizeof(inode_disk_t));
+    block_rw(block_num, inode_buf, true);
   }
-  fail("mkfs no inodes");
-  return INVALID_INODE_NUM;
+  else
+  {
+    block_rw(block_num, inode_buf, false);
+    memcpy(ip, inode_buf + byte_offset, sizeof(inode_disk_t));
+  }
 }
 
-/* Initialize an empty on-disk inode with its identity fields. */
+/* 从磁盘中申请1个空闲的data block */
+unsigned int block_alloc()
+{
+  unsigned int block_num, byte_offset, bit_offset;
+
+  block_num = sb.data_bitmap_firstblock + global_block_num / BIT_PER_BLOCK;
+  bit_offset = global_block_num % BIT_PER_BLOCK;
+  byte_offset = bit_offset / BIT_PER_BYTE;
+  bit_offset = bit_offset % BIT_PER_BYTE;
+
+  block_rw(block_num, bitmap_buf, false);
+  bitmap_buf[byte_offset] |= (1 << bit_offset);
+  block_rw(block_num, bitmap_buf, true);
+
+  return sb.data_firstblock + global_block_num++;
+}
+
+/* 从磁盘中申请1个空闲inode */
+unsigned int inode_alloc()
+{
+  unsigned int block_num, byte_offset, bit_offset;
+
+  block_num = sb.inode_bitmap_firstblock + global_inode_num / BIT_PER_BLOCK;
+  bit_offset = global_inode_num % BIT_PER_BLOCK;
+  byte_offset = bit_offset / BIT_PER_BYTE;
+  bit_offset = bit_offset % BIT_PER_BYTE;
+
+  block_rw(block_num, bitmap_buf, false);
+  bitmap_buf[byte_offset] |= (1 << bit_offset);
+  block_rw(block_num, bitmap_buf, true);
+
+  return global_inode_num++;
+}
+
+/*-------------------------inode精细化管理-------------------------*/
+
+/* inode初始化 */
 void inode_init(inode_disk_t *ip, short type, short major, short minor)
 {
-  memset(ip, 0, sizeof(*ip));
-  ip->type = (uint16_t)type;
-  ip->major = (uint16_t)major;
-  ip->minor = (uint16_t)minor;
+  ip->type = type;
+  ip->major = major;
+  ip->minor = minor;
+  ip->nlink = 1;
+  ip->size = 0;
+  for (int i = 0; i < 13; i++)
+    ip->index[i] = 0;
 }
 
-/* Append bytes while growing direct, single, and double index levels. */
+/* 对inode管理的数据做追加写 */
 void inode_append(inode_disk_t *ip, void *data, unsigned int len)
 {
-  uint8_t *source = data;
-  uint32_t done = 0;
-  while (done < len)
-  {
-    uint32_t logical = ip->size / BLOCK_SIZE;
-    uint32_t block_num;
-    if (logical < N_DIRECT_INDEX)
-    {
-      if (ip->index[logical] == 0)
-        ip->index[logical] = block_alloc();
-      block_num = ip->index[logical];
-    }
-    else if (logical < N_DIRECT_INDEX +
-                       N_INDIRECT_INDEX * BLOCK_NUMS_PER_BLOCK)
-    {
-      uint32_t relative = logical - N_DIRECT_INDEX;
-      uint32_t root_slot = N_DIRECT_INDEX +
-                           relative / BLOCK_NUMS_PER_BLOCK;
-      uint32_t slot = relative % BLOCK_NUMS_PER_BLOCK;
-      uint32_t index[BLOCK_NUMS_PER_BLOCK];
-      if (ip->index[root_slot] == 0)
-      {
-        ip->index[root_slot] = block_alloc();
-        memset(index, 0, sizeof(index));
-        block_rw(ip->index[root_slot], index, true);
-      }
-      else
-        block_rw(ip->index[root_slot], index, false);
-      if (index[slot] == 0)
-      {
-        index[slot] = block_alloc();
-        block_rw(ip->index[root_slot], index, true);
-      }
-      block_num = index[slot];
-    }
-    else
-    {
-      uint32_t relative = logical - N_DIRECT_INDEX -
-                          N_INDIRECT_INDEX * BLOCK_NUMS_PER_BLOCK;
-      if (relative >= BLOCK_NUMS_PER_BLOCK * BLOCK_NUMS_PER_BLOCK)
-        fail("mkfs file too large");
-      uint32_t first_slot = relative / BLOCK_NUMS_PER_BLOCK;
-      uint32_t second_slot = relative % BLOCK_NUMS_PER_BLOCK;
-      uint32_t first[BLOCK_NUMS_PER_BLOCK];
-      uint32_t second[BLOCK_NUMS_PER_BLOCK];
-      uint32_t root_slot = N_INODE_INDEX - 1;
-      if (ip->index[root_slot] == 0)
-      {
-        ip->index[root_slot] = block_alloc();
-        memset(first, 0, sizeof(first));
-        block_rw(ip->index[root_slot], first, true);
-      }
-      else
-        block_rw(ip->index[root_slot], first, false);
-      if (first[first_slot] == 0)
-      {
-        first[first_slot] = block_alloc();
-        memset(second, 0, sizeof(second));
-        block_rw(first[first_slot], second, true);
-        block_rw(ip->index[root_slot], first, true);
-      }
-      else
-        block_rw(first[first_slot], second, false);
-      if (second[second_slot] == 0)
-      {
-        second[second_slot] = block_alloc();
-        block_rw(first[first_slot], second, true);
-      }
-      block_num = second[second_slot];
-    }
+  unsigned int old_blocks, new_blocks;
+  unsigned int cut_len, tar_len;
+  unsigned int tmp, offset;
+  char *data_new = (char *)data;
 
-    uint8_t block[BLOCK_SIZE];
-    uint32_t block_offset = ip->size % BLOCK_SIZE;
-    if (block_offset == 0)
-      memset(block, 0, sizeof(block));
-    else
-      block_rw(block_num, block, false);
-    uint32_t count = BLOCK_SIZE - block_offset;
-    if (count > len - done)
-      count = len - done;
-    memcpy(block + block_offset, source + done, count);
-    block_rw(block_num, block, true);
-    ip->size += count;
-    done += count;
+  old_blocks = COUNT_BLOCKS(ip->size, BLOCK_SIZE);
+  new_blocks = COUNT_BLOCKS(ip->size + len, BLOCK_SIZE);
+  tmp = ip->size / BLOCK_SIZE;
+  tar_len = len;
+
+  /* 如果有必要, 扩充block空间 */
+  if (new_blocks > old_blocks)
+  {
+    if (new_blocks > INODE_BLOCK_INDEX_1)
+    { // 出于简化考虑, 暂不启用间接映射
+      printf("inode_append: data len out of space!\n");
+      return;
+    }
+    for (unsigned int i = old_blocks; i < new_blocks; i++)
+      ip->index[i] = block_alloc();
   }
+
+  /* 分段写入各个block */
+  while (len > 0)
+  {
+    if (tmp == ip->size / BLOCK_SIZE)
+    { /* last old block */
+      cut_len = MIN(BLOCK_SIZE - (ip->size % BLOCK_SIZE), len);
+      offset = ip->size % BLOCK_SIZE;
+      block_rw(ip->index[tmp], data_buf, false);
+      memcpy(data_buf + offset, data_new, cut_len);
+    }
+    else
+    { /* new block */
+      cut_len = MIN(BLOCK_SIZE, len);
+      memcpy(data_buf, data_new, cut_len);
+    }
+    block_rw(ip->index[tmp], data_buf, true);
+
+    len -= cut_len;
+    data_new += cut_len;
+    tmp++;
+  }
+  ip->size += tar_len;
 }
 
-/* Construct the sparse disk image and its initial root namespace. */
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-  if (argc != 2)
+  (void)argc;
+  (void)argv;
+
+  assert(BLOCK_SIZE % sizeof(inode_disk_t) == 0);
+
+  inode_disk_t inode[3];
+  unsigned int inode_num[3];
+  dentry_t dentry[4];
+
+  /* step-1: 填充 superblock 结构体 */
+  sb.magic_num = FS_MAGIC;
+  sb.block_size = BLOCK_SIZE;
+  sb.inode_bitmap_firstblock = 1;
+  sb.inode_bitmap_blocks = COUNT_BLOCKS(N_INODE, BIT_PER_BLOCK);
+  sb.inode_firstblock = sb.inode_bitmap_firstblock + sb.inode_bitmap_blocks;
+  sb.inode_blocks = COUNT_BLOCKS(N_INODE, INODE_PER_BLOCK);
+  sb.data_bitmap_firstblock = sb.inode_firstblock + sb.inode_blocks;
+  sb.data_bitmap_blocks = COUNT_BLOCKS(N_DATA_BLOCK, BIT_PER_BLOCK);
+  sb.data_firstblock = sb.data_bitmap_firstblock + sb.data_bitmap_blocks;
+  sb.data_blocks = N_DATA_BLOCK;
+  sb.total_inodes = N_INODE;
+  sb.total_blocks = 1 + sb.inode_bitmap_blocks + sb.inode_blocks + sb.data_bitmap_blocks + sb.data_blocks;
+
+  /* step-2: 创建磁盘文件 */
+  disk_fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
+  if (disk_fd < 0)
   {
-    fprintf(stderr, "usage: %s disk.img\n", argv[0]);
-    return 1;
+    perror(argv[1]);
+    exit(1);
   }
-  fs_image = fopen(argv[1], "wb+");
-  if (fs_image == NULL)
-    fail("mkfs open");
 
-  uint64_t image_size = (uint64_t)FS_NBLOCKS * BLOCK_SIZE;
-  if (image_size == 0 ||
-      fseek(fs_image, (long)(image_size - 1), SEEK_SET) != 0 ||
-      fputc(0, fs_image) == EOF || fflush(fs_image) != 0)
-    fail("mkfs size");
+  /* step-3: 准备一个清零的磁盘映像 */
+  memset(data_buf, 0, BLOCK_SIZE);
+  printf("\nPreparing disk.img...\n\n");
+  for (unsigned int i = 0; i < sb.total_blocks; i++)
+    block_rw(i, data_buf, true);
 
-  memset(&superblock, 0, sizeof(superblock));
-  superblock.magic = FS_MAGIC;
-  superblock.block_size = BLOCK_SIZE;
-  superblock.nblocks = FS_NBLOCKS;
-  superblock.ninodes = FS_NINODES;
-  superblock.inode_bitmap_start = 1;
-  superblock.inode_bitmap_blocks = 2;
-  superblock.inode_start = 3;
-  superblock.inode_blocks = 1024;
-  superblock.data_bitmap_start = 1027;
-  superblock.data_bitmap_blocks = 40;
-  superblock.data_start = 1067;
-  superblock.data_blocks = FS_NBLOCKS - superblock.data_start;
+  /* step-4: 制作根目录 */
+  inode_num[0] = inode_alloc();
+  if (inode_num[0] != ROOT_INODE_NUM)
+  {
+    printf("invalid inode[i]_num = %u\n", inode_num[0]);
+    return -1;
+  }
+  inode_init(&inode[0], INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
 
-  uint8_t block[BLOCK_SIZE];
-  memset(block, 0, sizeof(block));
-  memcpy(block, &superblock, sizeof(superblock));
-  block_write(fs_image, 0, block);
-  if (fflush(fs_image) != 0)
-    fail("mkfs superblock flush");
+  dentry[0].inode_num = xint(inode_num[0]);
+  dentry[1].inode_num = xint(inode_num[0]);
+  strcpy(dentry[0].name, ".");
+  strcpy(dentry[1].name, "..");
+  inode_append(&inode[0], dentry, sizeof(dentry_t) * 2);
 
-  uint32_t root_num = inode_alloc();
-  uint32_t file_num = inode_alloc();
-  if (root_num != 0 || file_num != 1)
-    fail("mkfs inode order");
+  /* step-5: 在根目录下创建两个文件 */
+  inode_num[1] = inode_alloc();
+  inode_num[2] = inode_alloc();
+  inode_init(&inode[1], INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  inode_init(&inode[2], INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
 
-  inode_disk_t root;
-  inode_disk_t file;
-  inode_init(&root, INODE_TYPE_DIRECTORY, 0, 0);
-  inode_init(&file, INODE_TYPE_FILE, 0, 0);
-  root.nlink = 2;
-  file.nlink = 1;
+  dentry[2].inode_num = xint(inode_num[1]);
+  dentry[3].inode_num = xint(inode_num[2]);
+  strcpy(dentry[2].name, "ABCD.txt");
+  strcpy(dentry[3].name, "abcd.txt");
+  inode_append(&inode[0], dentry + 2, sizeof(dentry_t) * 2);
 
-  dentry_t entry;
-  memset(&entry, 0, sizeof(entry));
-  entry.inode_num = root_num;
-  memcpy(entry.name, ".", 2);
-  inode_append(&root, &entry, sizeof(entry));
-  memset(&entry, 0, sizeof(entry));
-  entry.inode_num = root_num;
-  memcpy(entry.name, "..", 3);
-  inode_append(&root, &entry, sizeof(entry));
-  memset(&entry, 0, sizeof(entry));
-  entry.inode_num = file_num;
-  memcpy(entry.name, "file.txt", 9);
-  inode_append(&root, &entry, sizeof(entry));
+  /* step-6: 填充文件内容 */
+  char tmp[26];
+  for (int i = 0; i < 26; i++)
+    tmp[i] = 'A' + i;
+  for (int i = 0; i < 200; i++)
+    inode_append(&inode[1], tmp, sizeof(tmp));
+  for (int i = 0; i < 26; i++)
+    tmp[i] = 'a' + i;
+  for (int i = 0; i < 500; i++)
+    inode_append(&inode[2], tmp, sizeof(tmp));
 
-  char file_context[] = "This is file context";
-  inode_append(&file, file_context, sizeof(file_context) - 1U);
-  inode_rw(root_num, &root, true);
-  inode_rw(file_num, &file, true);
+  /* step-7: 写回super block和inode */
+  sb.magic_num = xint(sb.magic_num);
+  sb.block_size = xint(sb.block_size);
+  sb.inode_bitmap_blocks = xint(sb.inode_bitmap_blocks);
+  sb.inode_bitmap_firstblock = xint(sb.inode_bitmap_firstblock);
+  sb.inode_blocks = xint(sb.inode_blocks);
+  sb.inode_firstblock = xint(sb.inode_firstblock);
+  sb.data_bitmap_blocks = xint(sb.data_bitmap_blocks);
+  sb.data_bitmap_firstblock = xint(sb.data_bitmap_firstblock);
+  sb.data_blocks = xint(sb.data_blocks);
+  sb.data_firstblock = xint(sb.data_firstblock);
+  sb.total_inodes = xint(sb.total_inodes);
+  sb.total_blocks = xint(sb.total_blocks);
+  memcpy(data_buf, &sb, sizeof(sb));
+  block_rw(0, data_buf, true);
 
-  if (fclose(fs_image) != 0)
-    fail("mkfs close");
-  printf("mkfs: %u blocks, data starts at %u (%u blocks), root inode %u\n",
-         superblock.nblocks, superblock.data_start, superblock.data_blocks,
-         root_num);
+  for (int i = 0; i < 3; i++)
+  {
+    inode[i].type = xshort(inode[i].type);
+    inode[i].major = xshort(inode[i].major);
+    inode[i].minor = xshort(inode[i].minor);
+    inode[i].nlink = xshort(inode[i].nlink);
+    inode[i].size = xint(inode[i].size);
+    for (int j = 0; j < INODE_INDEX_3; j++)
+      inode[i].index[j] = xint(inode[i].index[j]);
+    inode_rw(inode_num[i], &inode[i], true);
+  }
+
+  /* step-8: 关闭磁盘文件 */
+  close(disk_fd);
+
   return 0;
 }

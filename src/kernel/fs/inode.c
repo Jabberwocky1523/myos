@@ -44,8 +44,7 @@ void free_data_blocks(uint32 *inode_index)
     panic("free_data_blocks null");
   for (uint32 i = 0; i < N_INODE_INDEX; ++i)
   {
-    uint32 level = i < N_DIRECT_INDEX ? 0 :
-                   (i < N_DIRECT_INDEX + N_INDIRECT_INDEX ? 1 : 2);
+    uint32 level = i < N_DIRECT_INDEX ? 0 : (i < N_DIRECT_INDEX + N_INDIRECT_INDEX ? 1 : 2);
     if (inode_index[i] != 0)
       __free_data_blocks(inode_index[i], level);
     inode_index[i] = 0;
@@ -432,16 +431,29 @@ int inode_write_data(inode_t *ip, uint32 offset, uint32 len,
 }
 
 /* Print a locked inode's metadata and index roots for diagnostics. */
+/* 输出inode信息(for debug) */
 void inode_print(inode_t *ip, char *name)
 {
-  if (ip == NULL || !sleeplock_holding(&ip->slk))
-    panic("inode_print state");
-  printf("inode %d %s: type=%d nlink=%d size=%d\n",
-         (int)ip->inode_num, name == NULL ? "" : name,
-         (int)ip->disk_info.type, (int)ip->disk_info.nlink,
-         (int)ip->disk_info.size);
-  printf("  index:");
-  for (uint32 i = 0; i < N_INODE_INDEX; ++i)
-    printf(" %d", (int)ip->disk_info.index[i]);
-  printf("\n");
+  static char *inode_type_list[] = {"NONE", "DIR", "DATA", "DEVICE"};
+  assert(sleeplock_holding(&ip->slk), "inode_print: slk");
+
+  spinlock_acquire(&inode_cache_lock);
+
+  printf("inode %s:\n", name);
+  printf("ref = %d, inode_num = %d, valid_info = %d\n", ip->ref, ip->inode_num, ip->valid);
+  printf("type = %s, major = %d, minor = %d, nlink = %d, size = %d\n", inode_type_list[ip->disk_info.type],
+         ip->disk_info.major, ip->disk_info.minor, ip->disk_info.nlink, ip->disk_info.size);
+
+  printf("index_list = [ ");
+  for (int i = 0; i < INODE_INDEX_1; i++)
+    printf("%d ", ip->disk_info.index[i]);
+  printf("] [ ");
+  for (int i = INODE_INDEX_1; i < INODE_INDEX_2; i++)
+    printf("%d ", ip->disk_info.index[i]);
+  printf("] [ ");
+  for (int i = INODE_INDEX_2; i < INODE_INDEX_3; i++)
+    printf("%d ", ip->disk_info.index[i]);
+  printf("]\n\n");
+
+  spinlock_release(&inode_cache_lock);
 }

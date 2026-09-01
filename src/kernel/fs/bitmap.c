@@ -91,29 +91,55 @@ int bitmap_free_inode(uint32 inode_num)
   return 0;
 }
 
-void bitmap_print(bool print_inode_bitmap)
+void bitmap_print(bool print_data_bitmap)
 {
-  uint32 start = print_inode_bitmap ? superblock.inode_bitmap_start :
-                                     superblock.data_bitmap_start;
-  uint32 blocks = print_inode_bitmap ? superblock.inode_bitmap_blocks :
-                                      superblock.data_bitmap_blocks;
-  uint32 count = print_inode_bitmap ? superblock.ninodes :
-                                     superblock.data_blocks;
-  uint32 base = print_inode_bitmap ? 0 : superblock.data_start;
-  printf("%s bitmap:", print_inode_bitmap ? "inode" : "data");
-  uint32 offset = 0;
-  for (uint32 i = 0; i < blocks; ++i)
+  uint32 first_block, bitmap_blocks, total_bits;
+  uint32 global_base, current_bit = 0;
+  superblock_t sb = superblock;
+  if (print_data_bitmap)
   {
-    buffer_t *b = buffer_get(start + i);
-    buffer_read(b);
-    uint32 valid = count - offset;
-    if (valid > BITS_PER_BLOCK)
-      valid = BITS_PER_BLOCK;
-    for (uint32 bit = 0; bit < valid; ++bit)
-      if ((b->data[bit >> 3] & (1U << (bit & 7U))) != 0)
-        printf(" %d", (int)(base + offset + bit));
-    buffer_put(b);
-    offset += valid;
+    printf("data bitmap alloced bits:\n");
+    first_block = sb.data_bitmap_start;
+    bitmap_blocks = sb.data_bitmap_blocks;
+    total_bits = sb.data_blocks;
+    global_base = sb.data_start;
   }
-  printf("\n");
+  else
+  {
+    printf("inode bitmap alloced bits:\n");
+    first_block = sb.inode_bitmap_start;
+    bitmap_blocks = sb.inode_bitmap_blocks;
+    total_bits = sb.ninodes;
+    global_base = 0;
+  }
+
+  for (uint32 block = 0; block < bitmap_blocks; block++)
+  {
+    uint32 bitmap_block_num = first_block + block;
+    uint32 bits_in_this_block = BIT_PER_BLOCK;
+
+    // 最后一个 block 可能不满
+    if (current_bit + BIT_PER_BLOCK > total_bits)
+      bits_in_this_block = total_bits - current_bit;
+
+    buffer_t *buf = buffer_get(bitmap_block_num);
+    buffer_read(buf);
+
+    // 遍历该 block 中的有效 bit
+    for (uint32 byte = 0; byte < bits_in_this_block / BIT_PER_BYTE; byte++)
+    {
+      for (uint32 shift = 0; shift < BIT_PER_BYTE; shift++)
+      {
+        if (current_bit >= total_bits)
+          break;
+
+        uint8 mask = (uint8)(1U << shift);
+        if (buf->data[byte] & mask)
+          printf("%d ", global_base + current_bit);
+        current_bit++;
+      }
+    }
+    buffer_put(buf);
+  }
+  printf("over!\n\n");
 }
