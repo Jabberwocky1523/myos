@@ -9,5 +9,11 @@ typedef struct spinlock {
   uint64 owner;
 } spinlock_t;
 
-#endif
+typedef struct sleeplock {
+  spinlock_t lock;
+  bool locked;
+  int pid;
+  const char *name;
+} sleeplock_t;
 
+#endif

@@ -19,6 +19,7 @@ void timer_init(void);
 void timer_create(void);
 void timer_update(void);
 uint64 timer_get_ticks(void);
+void timer_wait(uint64 ntick);
 
 void plic_init(void);
 void plic_inithart(void);

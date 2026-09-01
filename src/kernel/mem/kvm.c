@@ -83,9 +83,12 @@ void kvm_init(void)
   vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline,
               PAGE_SIZE, PTE_R | PTE_X);
 
-  uint64 first_kstack = pmem_alloc(true);
-  vm_mappages(kernel_pgtbl, KSTACK(0), first_kstack,
-              PAGE_SIZE, PTE_R | PTE_W);
+  for (uint32 i = 0; i < NPROC; ++i)
+  {
+    uint64 kstack = pmem_alloc(true);
+    vm_mappages(kernel_pgtbl, KSTACK(i), kstack,
+                PAGE_SIZE, PTE_R | PTE_W);
+  }
 
   uint64 text_end = PGROUNDUP((uint64)KERNEL_DATA);
   vm_mappages(kernel_pgtbl, KERNEL_BASE, KERNEL_BASE,

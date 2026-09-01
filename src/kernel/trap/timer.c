@@ -3,6 +3,7 @@
 #include "../arch/method.h"
 #include "../lib/method.h"
 #include "../lock/method.h"
+#include "../proc/method.h"
 
 #ifndef TIMER_INTERVAL
 #define TIMER_INTERVAL 1000000UL
@@ -44,6 +45,16 @@ void timer_update(void)
 {
   spinlock_acquire(&ticks_lock);
   sys_ticks++;
+  spinlock_release(&ticks_lock);
+  proc_wakeup(&sys_ticks);
+}
+
+void timer_wait(uint64 ntick)
+{
+  spinlock_acquire(&ticks_lock);
+  uint64 begin = sys_ticks;
+  while (sys_ticks - begin < ntick)
+    proc_sleep(&sys_ticks, &ticks_lock);
   spinlock_release(&ticks_lock);
 }
 

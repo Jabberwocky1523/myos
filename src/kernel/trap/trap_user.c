@@ -37,16 +37,22 @@ void trap_user_handler(void)
     {
       printf("invalid user page fault: scause=%x sepc=%x stval=%x\n",
              scause, r_sepc(), r_stval());
-      panic("invalid user page fault");
+      proc_exit(-1);
     }
     p->ustack_npage = (uint64)pages;
     printf("user stack grown pages=%d\n", (int)pages);
   }
-  else if (interrupt_info() == 0)
+  else
   {
-    printf("unexpected user trap: scause=%x sepc=%x stval=%x\n",
-           scause, r_sepc(), r_stval());
-    panic("unexpected user trap");
+    int which = interrupt_info();
+    if (which == 0)
+    {
+      printf("unexpected user trap: scause=%x sepc=%x stval=%x\n",
+             scause, r_sepc(), r_stval());
+      proc_exit(-1);
+    }
+    if (which == 1)
+      proc_yield();
   }
 
   trap_user_return();

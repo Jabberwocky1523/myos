@@ -2,6 +2,7 @@
 #include "../arch/type.h"
 #include "../arch/method.h"
 #include "../lib/method.h"
+#include "../proc/method.h"
 
 void trap_kernel_init(void)
 {
@@ -21,7 +22,8 @@ void trap_kernel_inithart(void)
 
 void timer_interrupt_handler(void)
 {
-  timer_update();
+  if (r_tp() == 0)
+    timer_update();
 }
 
 void external_interrupt_handler(void)
@@ -66,8 +68,13 @@ int interrupt_info(void)
 
 void trap_kernel_handler(void)
 {
-  if (interrupt_info() != 0)
+  int which = interrupt_info();
+  if (which != 0)
+  {
+    if (which == 1 && myproc() != NULL)
+      proc_yield();
     return;
+  }
 
   printf("unexpected kernel trap: scause=%x sepc=%x stval=%x\n",
          r_scause(), r_sepc(), r_stval());

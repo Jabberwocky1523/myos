@@ -24,9 +24,9 @@ int main(void)
     kvm_inithart();
     trap_kernel_init();
     trap_kernel_inithart();
-    printf("lab5 hart %d ready\n", (int)id);
-    __atomic_store_n(&kernel_ready, 1, __ATOMIC_RELEASE);
+    printf("lab6 hart %d ready\n", (int)id);
     proc_make_first();
+    __atomic_store_n(&kernel_ready, 1, __ATOMIC_RELEASE);
   }
   else
   {
@@ -34,8 +34,7 @@ int main(void)
       ;
     kvm_inithart();
     trap_kernel_inithart();
-    printf("lab5 hart %d ready\n", (int)id);
+    printf("lab6 hart %d ready\n", (int)id);
   }
-  for (;;)
-    ;
+  proc_scheduler();
 }

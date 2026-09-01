@@ -4,26 +4,6 @@
 #include "syscall_arch.h"
 #include "syscall_num.h"
 
-static inline long helloworld(void)
-{
-  return __syscall0(SYS_helloworld);
-}
-
-static inline long copyin(const void *src, unsigned long count)
-{
-  return __syscall2(SYS_copyin, (long)src, (long)count);
-}
-
-static inline long copyout(void *dst)
-{
-  return __syscall1(SYS_copyout, (long)dst);
-}
-
-static inline long copyinstr(const char *src)
-{
-  return __syscall1(SYS_copyinstr, (long)src);
-}
-
 #define SYSCALL0(n) __syscall0((long)(n))
 #define SYSCALL1(n, a) __syscall1((long)(n), (long)(a))
 #define SYSCALL2(n, a, b) __syscall2((long)(n), (long)(a), (long)(b))
@@ -58,7 +38,7 @@ static inline long munmap(void *start, unsigned long len)
 
 static inline long user_printf(const char *s)
 {
-  return __syscall1(SYS_printf, (long)s);
+  return __syscall1(SYS_print_str, (long)s);
 }
 
 #endif

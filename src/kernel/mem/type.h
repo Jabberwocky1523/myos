@@ -30,6 +30,7 @@
 #define USER_STACK_TOP TRAPFRAME
 #define USER_STACK (USER_STACK_TOP - PAGE_SIZE)
 #define MMAP_REGION_COUNT 256U
+#define NPROC 64U
 
 #define SATP_SV39 (8UL << 60)
 #define MAKE_SATP(pgtbl) (SATP_SV39 | ((uint64)(pgtbl) >> 12))

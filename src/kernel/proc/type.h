@@ -64,13 +64,20 @@ typedef struct user_trapframe {
 
 typedef enum proc_state {
   PROC_UNUSED,
+  PROC_EMBRYO,
+  PROC_SLEEPING,
   PROC_RUNNABLE,
   PROC_RUNNING,
+  PROC_ZOMBIE,
 } proc_state_t;
 
 typedef struct proc {
   spinlock_t lock;
   proc_state_t state;
+  int pid;
+  struct proc *parent;
+  int exit_code;
+  void *sleep_space;
   uint64 kstack;
   pgtbl_t pgtbl;
   user_trapframe_t *trapframe;
@@ -83,7 +90,7 @@ typedef struct proc {
 
 typedef struct cpu {
   proc_t *proc;
-  context_t context;
+  context_t scheduler;
 } cpu_t;
 
 _Static_assert(sizeof(user_trapframe_t) == 288,
