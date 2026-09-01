@@ -1,0 +1,7 @@
+purpose: implement this spec
+rules: 
+  - 如果有git记录,就先读取git记录,对比labN-1到labN的spec差异
+  - 读取所有的spec文件之后再implement
+  - 不允许在implement阶段增加spec中没有声明的函数,如果需要增加,必须暂停并询问用户意见
+  - 按照测试用例一步一步实现,每次实现只需完善一部分代码,最后再整体检查,确保所有测试用例都通过,检查必须通过make run确保没有出错
+  - 每个函数都要有注释说明
