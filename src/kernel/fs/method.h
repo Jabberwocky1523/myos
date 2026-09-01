@@ -4,6 +4,8 @@
 #include "type.h"
 
 extern superblock_t superblock;
+extern spinlock_t inode_cache_lock;
+extern inode_t inode_cache[N_INODE_CACHE];
 
 void virtio_disk_init(void);
 int alloc_desc(void);
@@ -34,5 +36,32 @@ void bitmap_print(bool print_inode_bitmap);
 
 void sb_print(void);
 void fs_init(void);
+void block_rw(uint32 block_num, void *buf, bool write_it);
+void inode_rw(uint32 inode_num, inode_disk_t *ip, bool write_it);
+
+bool __free_data_blocks(uint32 block_num, uint32 level);
+void free_data_blocks(uint32 *inode_index);
+int locate_or_add_block(uint32 *inode_index, uint32 logical_block_num);
+inode_t *inode_get(uint32 inode_num);
+inode_t *inode_create(uint16 type, uint16 major, uint16 minor);
+inode_t *inode_dup(inode_t *ip);
+void inode_lock(inode_t *ip);
+void inode_unlock(inode_t *ip);
+void inode_put(inode_t *ip);
+void inode_delete(inode_t *ip);
+int inode_read_data(inode_t *ip, uint32 offset, uint32 len, void *dst,
+                    bool is_user_dst);
+int inode_write_data(inode_t *ip, uint32 offset, uint32 len,
+                     const void *src, bool is_user_src);
+void inode_print(inode_t *ip, char *name);
+
+uint32 dentry_search(inode_t *ip, char *name);
+int dentry_create(inode_t *ip, uint32 inode_num, char *name);
+uint32 dentry_delete(inode_t *ip, char *name);
+void dentry_print(inode_t *ip);
+char *get_element(char *path, char *name);
+inode_t *__path_to_inode(char *path, char *name, bool find_parent_inode);
+inode_t *path_to_inode(char *path);
+inode_t *path_to_parent_inode(char *path, char *name);
 
 #endif

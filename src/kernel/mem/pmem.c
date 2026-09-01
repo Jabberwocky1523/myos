@@ -1,6 +1,7 @@
 #include "method.h"
 #include "../lib/method.h"
 #include "../lock/method.h"
+#include "../fs/method.h"
 
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
@@ -73,9 +74,12 @@ uint64 pmem_try_alloc(bool in_kernel)
   return (uint64)page;
 }
 
+/* Allocate a page, reclaiming an inactive buffer page if necessary. */
 uint64 pmem_alloc(bool in_kernel)
 {
   uint64 page = pmem_try_alloc(in_kernel);
+  if (page == 0 && in_kernel && buffer_freemem(1) != 0)
+    page = pmem_try_alloc(true);
   if (page == 0)
     panic(in_kernel ? "kernel physical memory exhausted" :
                       "user physical memory exhausted");

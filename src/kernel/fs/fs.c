@@ -1,8 +1,10 @@
 #include "method.h"
 #include "../lib/method.h"
+#include "../lock/method.h"
 
 superblock_t superblock;
 
+/* Print the validated disk geometry. */
 void sb_print(void)
 {
       printf("superblock:\n");
@@ -23,6 +25,7 @@ void sb_print(void)
              (int)(superblock.data_start + superblock.data_blocks));
 }
 
+/* Initialize block and inode caches after validating the superblock. */
 void fs_init(void)
 {
       buffer_init();
@@ -44,5 +47,49 @@ void fs_init(void)
           superblock.data_start + superblock.data_blocks !=
               superblock.nblocks)
             panic("invalid superblock");
+      spinlock_init(&inode_cache_lock, "inode cache");
+      for (uint32 i = 0; i < N_INODE_CACHE; ++i)
+      {
+        memset(&inode_cache[i], 0, sizeof(inode_cache[i]));
+        sleeplock_init(&inode_cache[i].slk, "inode");
+        inode_cache[i].inode_num = INVALID_INODE_NUM;
+      }
       sb_print();
+}
+
+/* Transfer one whole block between disk and a kernel buffer. */
+void block_rw(uint32 block_num, void *data, bool write_it)
+{
+  buffer_t *b = buffer_get(block_num);
+  if (write_it)
+  {
+    memmove(b->data, data, BLOCK_SIZE);
+    buffer_write(b);
+  }
+  else
+  {
+    buffer_read(b);
+    memmove(data, b->data, BLOCK_SIZE);
+  }
+  buffer_put(b);
+}
+
+/* Transfer one fixed-size inode between its table slot and memory. */
+void inode_rw(uint32 inode_num, inode_disk_t *ip, bool write_it)
+{
+  if (inode_num >= superblock.ninodes || ip == NULL)
+    panic("inode_rw arguments");
+  uint32 byte_offset = inode_num * sizeof(inode_disk_t);
+  uint32 block_num = superblock.inode_start + byte_offset / BLOCK_SIZE;
+  uint32 block_offset = byte_offset % BLOCK_SIZE;
+  buffer_t *b = buffer_get(block_num);
+  buffer_read(b);
+  if (write_it)
+  {
+    memmove(b->data + block_offset, ip, sizeof(*ip));
+    buffer_write(b);
+  }
+  else
+    memmove(ip, b->data + block_offset, sizeof(*ip));
+  buffer_put(b);
 }

@@ -49,11 +49,12 @@ bool spinlock_holding(spinlock_t *lk)
   return lk->locked != 0 && lk->owner == hart_id();
 }
 
+/* Acquire a spinlock and diagnose recursive acquisition by lock name. */
 void spinlock_acquire(spinlock_t *lk)
 {
   push_off();
   if (spinlock_holding(lk))
-    panic("acquire");
+    panic(lk->name);
 
   while (__sync_lock_test_and_set(&lk->locked, 1) != 0)
     ;
@@ -61,10 +62,11 @@ void spinlock_acquire(spinlock_t *lk)
   lk->owner = hart_id();
 }
 
+/* Release a spinlock and diagnose ownership errors by lock name. */
 void spinlock_release(spinlock_t *lk)
 {
   if (!spinlock_holding(lk))
-    panic("release");
+    panic(lk->name);
 
   lk->owner = ~0UL;
   __sync_synchronize();

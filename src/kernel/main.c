@@ -6,6 +6,7 @@
 #include "fs/method.h"
 
 static volatile uint32 kernel_ready;
+/* Initialize global kernel subsystems on the boot hart. */
 void init(void)
 {
   print_init();
@@ -15,6 +16,7 @@ void init(void)
   proc_init();
 }
 
+/* Start the requested harts and enter the process scheduler. */
 int main(void)
 {
   uint64 id = hart_id();
@@ -26,7 +28,7 @@ int main(void)
     trap_kernel_init();
     trap_kernel_inithart();
     virtio_disk_init();
-    printf("lab7 hart %d ready\n", (int)id);
+    printf("lab8 hart %d ready\n", (int)id);
     proc_make_first();
     __atomic_store_n(&kernel_ready, 1, __ATOMIC_RELEASE);
   }
@@ -36,7 +38,7 @@ int main(void)
       ;
     kvm_inithart();
     trap_kernel_inithart();
-    printf("lab7 hart %d ready\n", (int)id);
+    printf("lab8 hart %d ready\n", (int)id);
   }
   proc_scheduler();
 }

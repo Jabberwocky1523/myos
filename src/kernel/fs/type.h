@@ -12,6 +12,30 @@
 #define N_BUFFER 8U
 #define VIRTIO_NUM 8U
 
+#define FS_INODE_SIZE 64U
+#define N_INODE_CACHE 64U
+#define ROOT_INODE 0U
+#define INVALID_INODE_NUM 0xffffffffU
+
+#define INODE_TYPE_NONE 0U
+#define INODE_TYPE_DIRECTORY 1U
+#define INODE_TYPE_FILE 2U
+#define INODE_TYPE_DEVICE 3U
+#define INODE_TYPE_DIR INODE_TYPE_DIRECTORY
+#define INODE_TYPE_DATA INODE_TYPE_FILE
+
+#define N_DIRECT_INDEX 10U
+#define N_INDIRECT_INDEX 2U
+#define N_INODE_INDEX 13U
+#define BLOCK_NUMS_PER_BLOCK (BLOCK_SIZE / sizeof(uint32))
+#define MAX_FILE_BLOCKS \
+  (N_DIRECT_INDEX + N_INDIRECT_INDEX * BLOCK_NUMS_PER_BLOCK + \
+   BLOCK_NUMS_PER_BLOCK * BLOCK_NUMS_PER_BLOCK)
+#define MAX_FILE_SIZE (MAX_FILE_BLOCKS * BLOCK_SIZE)
+
+#define DENTRY_NAME_SIZE 60U
+#define DENTRY_PER_BLOCK (BLOCK_SIZE / sizeof(dentry_t))
+
 #define BUFFER_BLOCK_NONE 0xffffffffU
 
 typedef struct superblock {
@@ -28,6 +52,28 @@ typedef struct superblock {
   uint32 data_start;
   uint32 data_blocks;
 } superblock_t;
+
+typedef struct inode_disk {
+  uint16 type;
+  uint16 major;
+  uint16 minor;
+  uint16 nlink;
+  uint32 size;
+  uint32 index[N_INODE_INDEX];
+} inode_disk_t;
+
+typedef struct inode {
+  uint32 inode_num;
+  uint32 ref;
+  bool valid;
+  sleeplock_t slk;
+  inode_disk_t disk_info;
+} inode_t;
+
+typedef struct dentry {
+  uint32 inode_num;
+  char name[DENTRY_NAME_SIZE];
+} dentry_t;
 
 typedef struct buffer buffer_t;
 
@@ -46,6 +92,11 @@ struct buffer {
   uint8 *data;
   buffer_node_t node;
 };
+
+_Static_assert(sizeof(inode_disk_t) == FS_INODE_SIZE,
+               "on-disk inode must be 64 bytes");
+_Static_assert(sizeof(dentry_t) == 64,
+               "on-disk dentry must be 64 bytes");
 
 typedef struct virtq_desc {
   uint64 addr;

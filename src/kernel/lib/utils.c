@@ -35,3 +35,11 @@ int strncmp(const char *p, const char *q, uint32 n)
   return (int)(uint8)*p - (int)(uint8)*q;
 }
 
+/* Return the number of bytes before a string's terminating NUL. */
+uint32 strlen(const char *str)
+{
+  uint32 length = 0;
+  while (str[length] != '\0')
+    length++;
+  return length;
+}

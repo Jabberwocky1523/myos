@@ -60,14 +60,7 @@ void buffer_init(void)
   }
 }
 
-bool buffer_valid_pointer(buffer_t *b)
-{
-  uint64 address = (uint64)b;
-  return address >= (uint64)&buffers[0] &&
-         address < (uint64)&buffers[N_BUFFER] &&
-         (address - (uint64)&buffers[0]) % sizeof(buffer_t) == 0;
-}
-
+/* Return the unique locked cache buffer for a disk block. */
 buffer_t *buffer_get(uint32 block_num)
 {
   if (block_num >= FS_NBLOCKS)
@@ -88,14 +81,14 @@ buffer_t *buffer_get(uint32 block_num)
   }
 
   buffer_node_t *node = inactive_head.prev;
-  if (node == &inactive_head || node->buffer->ref != 0)
+  while (node != &inactive_head && node->buffer->ref != 0)
+    node = node->prev;
+  if (node == &inactive_head)
   {
     spinlock_release(&cache_lock);
     panic("no free buffer");
   }
   buffer_t *b = node->buffer;
-  if (b->data == NULL)
-    b->data = (uint8 *)pmem_alloc(true);
   b->block_num = block_num;
   b->ref = 1;
   b->valid = false;
@@ -103,12 +96,14 @@ buffer_t *buffer_get(uint32 block_num)
   insert_node(&b->node, true, true);
   spinlock_release(&cache_lock);
   sleeplock_acquire(&b->lock);
+  if (b->data == NULL)
+    b->data = (uint8 *)pmem_alloc(true);
   return b;
 }
 
 void buffer_read(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock))
+  if (!sleeplock_holding(&b->lock))
     panic("buffer_read lock");
   if (!b->valid)
   {
@@ -119,7 +114,7 @@ void buffer_read(buffer_t *b)
 
 void buffer_write(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock) ||
+  if (!sleeplock_holding(&b->lock) ||
       b->data == NULL)
     panic("buffer_write lock");
   virtio_disk_rw(b, true);
@@ -128,7 +123,7 @@ void buffer_write(buffer_t *b)
 
 void buffer_put(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock))
+  if (!sleeplock_holding(&b->lock))
     panic("buffer_put lock");
   spinlock_acquire(&cache_lock);
   if (b->ref == 0)
@@ -140,6 +135,7 @@ void buffer_put(buffer_t *b)
   sleeplock_release(&b->lock);
 }
 
+/* Reclaim data pages from least-recently-used inactive buffers. */
 uint32 buffer_freemem(uint32 buffer_count)
 {
   uint32 freed = 0;
