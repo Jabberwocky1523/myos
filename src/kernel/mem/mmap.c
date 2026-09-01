@@ -61,15 +61,20 @@ void mmap_show_nodelist(void)
 
 void uvm_show_mmaplist(mmap_region_t *mmap)
 {
-  for (mmap_region_t *r = mmap; r != NULL; r = r->next)
-    printf("mmap[%d] %x-%x perm=%d\n", (int)r->index,
-           r->begin, r->end, r->perm);
+  mmap_region_t *tmp = mmap;
+  printf("\nalloced mmap_space:\n");
+  if (tmp == NULL)
+    printf("empty\n");
+  while (tmp != NULL)
+  {
+    printf("alloced mmap_region: %x ~ %x\n", tmp->begin, tmp->end);
+    tmp = tmp->next;
+  }
 }
-
 void mmap_merge(mmap_region_t *a, mmap_region_t *b, bool keep_a)
 {
   assert(a != NULL && b != NULL && a->perm == b->perm &&
-         (a->end == b->begin || b->end == a->begin),
+             (a->end == b->begin || b->end == a->begin),
          "invalid mmap merge");
   mmap_region_t *keep = keep_a ? a : b;
   mmap_region_t *drop = keep_a ? b : a;
@@ -205,8 +210,7 @@ int uvm_munmap(uint64 begin, uint32 npages)
 {
   proc_t *p = myproc();
   if (p == NULL || npages == 0 || (begin & PAGE_MASK) != 0 ||
-      begin < MMAP_BEGIN || (uint64)npages >
-      (MMAP_END - MMAP_BEGIN) / PAGE_SIZE)
+      begin < MMAP_BEGIN || (uint64)npages > (MMAP_END - MMAP_BEGIN) / PAGE_SIZE)
     return -1;
   uint64 len = (uint64)npages * PAGE_SIZE;
   if (begin > MMAP_END || len > MMAP_END - begin)

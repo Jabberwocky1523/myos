@@ -107,8 +107,10 @@ uint64 sys_mmap(void)
   if (len == 0 || (len & PAGE_MASK) != 0)
     return (uint64)-1;
   uint64 result = uvm_mmap(start, len / PAGE_SIZE, PTE_R | PTE_W);
-  printf("sys_mmap start=%x len=%d result=%x\n", start, (int)len, result);
+  // printf("sys_mmap start=%x len=%d result=%x\n", start, (int)len, result);
   uvm_show_mmaplist(myproc()->mmap);
+  vm_print(myproc()->pgtbl);
+  printf("\n");
   return result;
 }
 
@@ -121,8 +123,9 @@ uint64 sys_munmap(void)
   if (len == 0 || (len & PAGE_MASK) != 0)
     return (uint64)-1;
   int result = uvm_munmap(start, len / PAGE_SIZE);
-  printf("sys_munmap start=%x len=%d result=%d\n", start, (int)len, result);
   uvm_show_mmaplist(myproc()->mmap);
+  vm_print(myproc()->pgtbl);
+  printf("\n");
   return result < 0 ? (uint64)-1 : 0;
 }
 

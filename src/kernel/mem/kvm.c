@@ -104,23 +104,59 @@ void kvm_inithart(void)
   sfence_vma();
 }
 
-static void vm_print_level(pgtbl_t pgtbl, int level)
-{
-  for (int i = 0; i < 512; ++i)
-  {
-    pte_t pte = pgtbl[i];
-    if ((pte & PTE_V) == 0)
-      continue;
-    printf("level %d index %d pte %x pa %x\n", level, i,
-           pte, PTE_TO_PA(pte));
-    if (level > 0 && !pte_is_leaf(pte))
-      vm_print_level((pgtbl_t)PTE_TO_PA(pte), level - 1);
-  }
-}
+// static void vm_print_level(pgtbl_t pgtbl, int level)
+// {
+//   for (int i = 0; i < 512; ++i)
+//   {
+//     pte_t pte = pgtbl[i];
+//     if ((pte & PTE_V) == 0)
+//       continue;
+//     printf("level %d index %d pte %x pa %x\n", level, i,
+//            pte, PTE_TO_PA(pte));
+//     if (level > 0 && !pte_is_leaf(pte))
+//       vm_print_level((pgtbl_t)PTE_TO_PA(pte), level - 1);
+//   }
+// }
 
+// void vm_print(pgtbl_t pgtbl)
+// {
+//   assert(pgtbl != NULL, "vm_print null page table");
+//   printf("page table %x\n", (uint64)pgtbl);
+//   vm_print_level(pgtbl, 2);
+// }
 void vm_print(pgtbl_t pgtbl)
 {
-  assert(pgtbl != NULL, "vm_print null page table");
-  printf("page table %x\n", (uint64)pgtbl);
-  vm_print_level(pgtbl, 2);
+  // 顶级页表，次级页表，低级页表
+  pgtbl_t pgtbl_2 = pgtbl, pgtbl_1 = NULL, pgtbl_0 = NULL;
+  pte_t pte;
+
+  printf("level-2 pgtbl: pa = %p\n", pgtbl_2);
+  for (unsigned int i = 0; i < PGSIZE / sizeof(pte_t); i++)
+  {
+    pte = pgtbl_2[i];
+    if (!((pte)&PTE_V))
+      continue;
+    assert(PTE_CHECK(pte), "vm_print: pte check fail (1)");
+    pgtbl_1 = (pgtbl_t)PTE_TO_PA(pte);
+    printf(".. level-1 pgtbl %d: pa = %x\n", i, pgtbl_1);
+
+    for (unsigned int j = 0; j < PGSIZE / sizeof(pte_t); j++)
+    {
+      pte = pgtbl_1[j];
+      if (!((pte)&PTE_V))
+        continue;
+      assert(PTE_CHECK(pte), "vm_print: pte check fail (2)");
+      pgtbl_0 = (pgtbl_t)PTE_TO_PA(pte);
+      printf(".. .. level-0 pgtbl %d: pa = %x\n", j, pgtbl_0);
+
+      for (unsigned int k = 0; k < PGSIZE / sizeof(pte_t); k++)
+      {
+        pte = pgtbl_0[k];
+        if (!((pte)&PTE_V))
+          continue;
+        assert(!PTE_CHECK(pte), "vm_print: pte check fail (3)");
+        printf(".. .. .. physical page %d: pa = %x flags = %d\n", k, (uint64)PTE_TO_PA(pte), (int)PTE_FLAGS(pte));
+      }
+    }
+  }
 }

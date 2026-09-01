@@ -62,34 +62,34 @@ static void fail(const char *message)
 //     fail("lab5 stack test failed\n");
 //   user_printf("lab5 test 2 passed\n");
 // }
-// static void test_mmap(void)
-// {
-//   unsigned long a = syscall(SYS_mmap, MMAP_BEGIN + 4 * PGSIZE,
-//                             3 * PGSIZE);
-//   syscall(SYS_mmap, MMAP_BEGIN + 10 * PGSIZE, 2 * PGSIZE);
-//   syscall(SYS_mmap, MMAP_BEGIN + 2 * PGSIZE, 2 * PGSIZE);
-//   syscall(SYS_mmap, MMAP_BEGIN + 12 * PGSIZE, PGSIZE);
-//   syscall(SYS_mmap, MMAP_BEGIN + 7 * PGSIZE, 3 * PGSIZE);
-//   syscall(SYS_mmap, MMAP_BEGIN, 2 * PGSIZE);
-//   syscall(SYS_mmap, 0, 10 * PGSIZE);
-//   if ((long)a == -1)
-//     fail("lab5 mmap test failed\n");
-//   syscall(SYS_munmap, MMAP_BEGIN + 10 * PGSIZE, 5 * PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN, 10 * PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN + 17 * PGSIZE, 2 * PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN + 15 * PGSIZE, 2 * PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN + 19 * PGSIZE, 2 * PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN + 22 * PGSIZE, PGSIZE);
-//   syscall(SYS_munmap, MMAP_BEGIN + 21 * PGSIZE, PGSIZE);
-//   user_printf("lab5 tests 3 and 4 passed\n");
-// }
+static void test_mmap(void)
+{
+  unsigned long a = syscall(SYS_mmap, MMAP_BEGIN + 4 * PGSIZE,
+                            3 * PGSIZE);
+  syscall(SYS_mmap, MMAP_BEGIN + 10 * PGSIZE, 2 * PGSIZE);
+  syscall(SYS_mmap, MMAP_BEGIN + 2 * PGSIZE, 2 * PGSIZE);
+  syscall(SYS_mmap, MMAP_BEGIN + 12 * PGSIZE, PGSIZE);
+  syscall(SYS_mmap, MMAP_BEGIN + 7 * PGSIZE, 3 * PGSIZE);
+  syscall(SYS_mmap, MMAP_BEGIN, 2 * PGSIZE);
+  syscall(SYS_mmap, 0, 10 * PGSIZE);
+  if ((long)a == -1)
+    fail("lab5 mmap test failed\n");
+  syscall(SYS_munmap, MMAP_BEGIN + 10 * PGSIZE, 5 * PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN, 10 * PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN + 17 * PGSIZE, 2 * PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN + 15 * PGSIZE, 2 * PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN + 19 * PGSIZE, 2 * PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN + 22 * PGSIZE, PGSIZE);
+  syscall(SYS_munmap, MMAP_BEGIN + 21 * PGSIZE, PGSIZE);
+  user_printf("lab5 tests 3 and 4 passed\n");
+}
 
 int main(void)
 {
   // test_copy();
   // test_brk();
   // test_stack();
-  // test_mmap();
+  test_mmap();
 
   while (1)
     ;
