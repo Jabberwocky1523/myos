@@ -489,6 +489,12 @@ interface:
     errors:
       - 无空闲位返回失败
 properties:
+  - id: disk-layout
+    text: >-
+      固定磁盘布局：block size=4096 Byte，total size=5124 MB，total blocks=1311787，total
+      inodes=65536；superblock=block[0]；inode bitmap=block[1-2]；inode
+      region=block[3-1026]；data bitmap=block[1027-1066]；data
+      region=block[1067-1311786]。
   - id: unique-buffer
     text: 同一磁盘块同时只有一个cache实例。
   - id: lru-order

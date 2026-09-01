@@ -1,0 +1,4 @@
+target/
+kernel-qemu.elf
+disk.img
+src/user/initcode.h
