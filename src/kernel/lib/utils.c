@@ -12,10 +12,13 @@ void memmove(void *dst, const void *src, uint32 n)
   uint8 *d = dst;
   const uint8 *s = src;
 
-  if (d < s) {
+  if (d < s)
+  {
     while (n-- != 0)
       *d++ = *s++;
-  } else if (d > s) {
+  }
+  else if (d > s)
+  {
     d += n;
     s += n;
     while (n-- != 0)
@@ -25,7 +28,8 @@ void memmove(void *dst, const void *src, uint32 n)
 
 int strncmp(const char *p, const char *q, uint32 n)
 {
-  while (n != 0 && *p != '\0' && *p == *q) {
+  while (n != 0 && *p != '\0' && *p == *q)
+  {
     ++p;
     ++q;
     --n;

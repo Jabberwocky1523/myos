@@ -1,7 +1,7 @@
 #include "method.h"
 #include "../lib/method.h"
 #include "../lock/method.h"
-
+#include "../mem/method.h"
 superblock_t superblock;
 
 /* Print the validated disk geometry. */
@@ -57,71 +57,86 @@ void fs_init(void)
   sb_print();
   printf("============= test begin =============\n\n");
 
-  inode_t *rooti, *ip_1, *ip_2, *ip_3, *ip_4, *ip_5;
+  inode_t *ip_1, *ip_2;
+  uint32 len, cut_len;
 
-  /* 准备测试环境 */
+  /* 小批量读写测试 */
 
-  rooti = inode_get(ROOT_INODE);
-  ip_1 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  ip_2 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  ip_3 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  int small_src[10], small_dst[10];
+  for (int i = 0; i < 10; i++)
+    small_src[i] = i;
 
-  inode_lock(rooti);
+  ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
   inode_lock(ip_1);
-  inode_lock(ip_2);
-  inode_lock(ip_3);
+  inode_print(ip_1, "small_data");
 
-  if (dentry_create(rooti, ip_1->inode_num, "AABBC") == -1)
-    panic("dentry_create fail 1!");
-  if (dentry_create(ip_1, ip_2->inode_num, "aaabb") == -1)
-    panic("dentry_create fail 2!");
-  if (dentry_create(ip_2, ip_3->inode_num, "file.txt") == -1)
-    panic("dentry_create fail 3!");
-  char tmp1[] = "This is file context!";
-  char tmp2[32];
-  inode_write_data(ip_3, 0, sizeof(tmp1), tmp1, false);
+  printf("writing data...\n\n");
+  cut_len = 10 * sizeof(int);
+  for (uint32 offset = 0; offset < 400 * cut_len; offset += cut_len)
+  {
+    len = inode_write_data(ip_1, offset, cut_len, small_src, false);
+    assert(len == cut_len, "write fail 1!");
+  }
+  inode_print(ip_1, "small_data");
 
-  inode_rw(rooti->inode_num, &rooti->disk_info, true);
-  inode_rw(ip_1->inode_num, &ip_1->disk_info, true);
-  inode_rw(ip_2->inode_num, &ip_2->disk_info, true);
+  len = inode_read_data(ip_1, 120 * cut_len + 4, cut_len, small_dst, false);
+  assert(len == cut_len, "read fail 1!");
+  printf("read data:");
+  for (int i = 0; i < 10; i++)
+    printf(" %d", small_dst[i]);
+  printf("\n\n");
 
-  inode_unlock(rooti);
+  ip_1->disk_info.nlink = 0;
   inode_unlock(ip_1);
-  inode_unlock(ip_2);
-  inode_unlock(ip_3);
-  inode_put(rooti);
   inode_put(ip_1);
+
+  /* 大批量读写测试 */
+
+  char *big_src, big_dst[9];
+  uint64 big_pages[5];
+  big_dst[8] = 0;
+
+  /* 申请五个连续物理页面 (初始化阶段, 通常来说能拿到连续的) */
+  for (uint32 i = 0; i < 5; i++)
+  {
+    big_pages[i] = pmem_alloc(true);
+    if (i != 0)
+      assert(big_pages[i] == big_pages[0] - PGSIZE * i,
+             "contiguous fail!");
+  }
+  /* pmem_alloc按地址从高到低返回，连续区的起点是最后分配的页。 */
+  big_src = (char *)big_pages[4];
+
+  for (uint32 i = 0; i < 5 * (PGSIZE / 8); i++)
+    for (uint32 j = 0; j < 8; j++)
+      big_src[i * 8 + j] = 'A' + j;
+
+  ip_2 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  inode_lock(ip_2);
+  inode_print(ip_2, "big_data");
+
+  printf("writing data...\n\n");
+  cut_len = PGSIZE * 4 + 1110;
+  for (uint32 offset = 0; offset < cut_len * 10000; offset += cut_len)
+  {
+    len = inode_write_data(ip_2, offset, cut_len, big_src, false);
+    assert(len == cut_len, "write fail 2!");
+  }
+  inode_print(ip_2, "big_data");
+
+  len = inode_read_data(ip_2, cut_len * 10000 - 8, 8, big_dst, false);
+  assert(len == 8, "read fail 2");
+  printf("read data: %s\n", big_dst);
+
+  ip_2->disk_info.nlink = 0;
+  inode_unlock(ip_2);
   inode_put(ip_2);
-  inode_put(ip_3);
 
-  char *path = "///AABBC///aaabb/file.txt";
-  char name[256];
-
-  ip_4 = path_to_inode(path);
-  if (ip_4 == NULL)
-    panic("invalid ip_4");
-
-  ip_5 = path_to_parent_inode(path, name);
-  if (ip_5 == NULL)
-    panic("invalid ip_5");
-
-  printf("get a name = %s\n\n", name);
-
-  inode_lock(ip_4);
-  inode_lock(ip_5);
-
-  inode_print(ip_4, "file.txt");
-  inode_print(ip_5, "aaabb");
-
-  inode_read_data(ip_4, 0, 32, tmp2, false);
-  printf("read data: %s\n\n", tmp2);
-
-  inode_unlock(ip_4);
-  inode_unlock(ip_5);
-  inode_put(ip_4);
-  inode_put(ip_5);
+  for (uint32 i = 0; i < 5; i++)
+    pmem_free(big_pages[i], true);
 
   printf("============= test end =============\n");
+
   while (1)
     ;
 }

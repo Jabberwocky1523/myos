@@ -1,39 +1,28 @@
 #include "method.h"
 #include "../arch/method.h"
-
+#include "../proc/method.h"
+#include "../lib/method.h"
 extern void panic(const char *s) __attribute__((noreturn));
-
-static uint32 interrupt_depth[MAX_HARTS];
-static bool interrupt_was_enabled[MAX_HARTS];
 
 uint64 hart_id(void) { return r_tp(); }
 
-static bool interrupts_enabled(void)
-{
-  return intr_get();
-}
-
 void push_off(void)
 {
-  uint64 id = hart_id();
-  bool old = interrupts_enabled();
-
+  int old = intr_get();
   intr_off();
-  if (id >= MAX_HARTS)
-    panic("hart id exceeds MAX_HARTS");
-  if (interrupt_depth[id] == 0)
-    interrupt_was_enabled[id] = old;
-  interrupt_depth[id]++;
+  cpu_t *cpu = mycpu();
+  if (cpu == 0)
+    cpu->origin = old;
+  cpu->noff++;
 }
 
 void pop_off(void)
 {
-  uint64 id = hart_id();
-
-  if (id >= MAX_HARTS || interrupts_enabled() || interrupt_depth[id] == 0)
-    panic("pop_off");
-  interrupt_depth[id]--;
-  if (interrupt_depth[id] == 0 && interrupt_was_enabled[id])
+  cpu_t *cpu = mycpu();
+  assert(intr_get() == 0, "push_off: 1\n"); // 确保此时中断是关闭的
+  assert(cpu->noff >= 1, "push_off: 2\n");  // 确保push和pop的对应
+  cpu->noff--;
+  if (cpu->noff == 0 && cpu->origin == 1) // 只有所有push操作都被抵消且原来状态是开着时
     intr_on();
 }
 

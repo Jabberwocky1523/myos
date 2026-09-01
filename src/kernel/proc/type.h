@@ -6,7 +6,8 @@
 #include "../lock/type.h"
 #include "../mem/type.h"
 
-typedef struct context {
+typedef struct context
+{
   uint64 ra;
   uint64 sp;
   uint64 s0;
@@ -23,7 +24,8 @@ typedef struct context {
   uint64 s11;
 } context_t;
 
-typedef struct user_trapframe {
+typedef struct user_trapframe
+{
   uint64 kernel_satp;
   uint64 kernel_sp;
   uint64 kernel_trap;
@@ -62,7 +64,8 @@ typedef struct user_trapframe {
   uint64 t6;
 } user_trapframe_t;
 
-typedef enum proc_state {
+typedef enum proc_state
+{
   PROC_UNUSED,
   PROC_EMBRYO,
   PROC_SLEEPING,
@@ -71,7 +74,8 @@ typedef enum proc_state {
   PROC_ZOMBIE,
 } proc_state_t;
 
-typedef struct proc {
+typedef struct proc
+{
   spinlock_t lock;
   proc_state_t state;
   int pid;
@@ -88,9 +92,12 @@ typedef struct proc {
   const char *name;
 } proc_t;
 
-typedef struct cpu {
+typedef struct cpu
+{
   proc_t *proc;
   context_t scheduler;
+  uint32 noff;
+  int origin;
 } cpu_t;
 
 _Static_assert(sizeof(user_trapframe_t) == 288,

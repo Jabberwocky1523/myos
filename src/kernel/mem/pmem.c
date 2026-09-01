@@ -29,7 +29,8 @@ static void region_init(pmem_region_t *region, const char *name,
   region->allocable = 0;
   spinlock_init(&region->lock, name);
 
-  for (uint64 page = begin; page < end; page += PAGE_SIZE) {
+  for (uint64 page = begin; page < end; page += PAGE_SIZE)
+  {
     memset((void *)page, 1, PAGE_SIZE);
     free_page_t *node = (free_page_t *)page;
     node->next = region->freelist;
@@ -62,7 +63,8 @@ uint64 pmem_try_alloc(bool in_kernel)
   pmem_region_t *region = select_region(in_kernel);
   spinlock_acquire(&region->lock);
   free_page_t *page = region->freelist;
-  if (page != NULL) {
+  if (page != NULL)
+  {
     region->freelist = page->next;
     region->allocable--;
   }
@@ -81,8 +83,7 @@ uint64 pmem_alloc(bool in_kernel)
   if (page == 0 && in_kernel && buffer_freemem(1) != 0)
     page = pmem_try_alloc(true);
   if (page == 0)
-    panic(in_kernel ? "kernel physical memory exhausted" :
-                      "user physical memory exhausted");
+    panic(in_kernel ? "kernel physical memory exhausted" : "user physical memory exhausted");
   return page;
 }
 
