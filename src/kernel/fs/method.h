@@ -23,7 +23,6 @@ void buffer_read(buffer_t *buf);
 void buffer_write(buffer_t *buf);
 void buffer_put(buffer_t *buf);
 uint32 buffer_freemem(uint32 buffer_count);
-bool buffer_valid_pointer(buffer_t *buf);
 void buffer_print(void);
 
 int bitmap_search_and_set(uint32 bitmap_block_num, uint32 valid_count);

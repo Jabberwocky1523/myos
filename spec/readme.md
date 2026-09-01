@@ -1,163 +1,301 @@
-# LAB-7: 文件系统 之 磁盘管理
-
+# LAB-8: 文件系统 之 数据组织与层次结构
 
 ## 测试用例
 
-测试开始前, 请将**N_BUFFER**从(32 * 512)改成**N_BUFFER_TEST**, 方便测试
+考虑到测试的便捷性, 请直接在`fs_init`的最后位置添加测试逻辑
 
-测试用例包括三个部分:
+**测试1: inode的访问 + 创建 + 删除**
 
-1. 什么都不做, 测试superblock信息能否正常输出, 检验磁盘和缓冲系统的基本能力
-
-2. 测试bitmap中资源申请和释放的正确性
-
-3. 测试缓冲系统的LRU管理逻辑是否生效
-
-**test-1**
 
 ```c
-// test-1: read superblock
-#include "sys.h"
+    /* fs_init in fs.c */
 
-int main()
-{
-	syscall(SYS_print_str, "hello, world!\n");
+	printf("============= test begin =============\n\n");
+
+	inode_t *rooti, *ip_1, *ip_2;
+	
+	rooti = inode_get(ROOT_INODE);
+	inode_lock(rooti);
+	inode_print(rooti, "root");
+	inode_unlock(rooti);
+
+	/* 第一次查看bitmap */
+	bitmap_print(false);
+
+	ip_1 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	ip_2 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	inode_lock(ip_1);
+	inode_lock(ip_2);
+	inode_dup(ip_2);
+
+	inode_print(ip_1, "dir");
+	inode_print(ip_2, "data");
+	
+	/* 第二次查看bitmap */
+	bitmap_print(false);
+
+	ip_1->disk_info.nlink = 0;
+	ip_2->disk_info.nlink = 0;
+	inode_unlock(ip_1);
+	inode_unlock(ip_2);
+	inode_put(ip_1);
+	inode_put(ip_2);
+
+	/* 第三次查看bitmap */
+	bitmap_print(false);
+
+	inode_put(ip_2);
+	
+	/* 第四次查看bitmap */
+	bitmap_print(false);
+
+	printf("============= test end =============\n\n");
+
 	while(1);
-}
 ```
 
-**test-2**
+**测试2: 写入和读取inode管理的数据**
+
 
 ```c
-// test-2: bitmap
-#include "sys.h"
+    /* fs_init in fs.c */
 
-#define NUM 20
-#define N_BUFFER 8
+	printf("============= test begin =============\n\n");
 
-int main()
-{
-	unsigned int block_num[NUM];
-	unsigned int inode_num[NUM];
+	inode_t *ip_1, *ip_2;
+	uint32 len, cut_len;
 
-	for (int i = 0; i < NUM; i++)
-		block_num[i] = syscall(SYS_alloc_block);
+	/* 小批量读写测试 */
 
-	syscall(SYS_flush_buffer, N_BUFFER);
-	syscall(SYS_show_bitmap, 0);
-
-	for (int i = 0; i < NUM; i+=2)
-		syscall(SYS_free_block, block_num[i]);
+	int small_src[10], small_dst[10];
+	for (int i = 0; i < 10; i++)
+		small_src[i] = i;
 	
-	syscall(SYS_flush_buffer, N_BUFFER);
-	syscall(SYS_show_bitmap, 0);
+	ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	inode_lock(ip_1);
+	inode_print(ip_1, "small_data");
 
-	for (int i = 1; i < NUM; i+=2)
-		syscall(SYS_free_block, block_num[i]);
+	printf("writing data...\n\n");
+	cut_len = 10 * sizeof(int);
+	for (uint32 offset = 0; offset < 400 * cut_len; offset += cut_len) {
+		len = inode_write_data(ip_1, offset, cut_len, small_src, false);
+		assert(len == cut_len, "write fail 1!");
+	}
+	inode_print(ip_1, "small_data");
 
-	syscall(SYS_flush_buffer, N_BUFFER);
-	syscall(SYS_show_bitmap, 0);
+	len = inode_read_data(ip_1, 120 * cut_len + 4, cut_len, small_dst, false);
+	assert(len == cut_len, "read fail 1!");
+	printf("read data:");
+	for (int i = 0; i < 10; i++)
+		printf(" %d", small_dst[i]);
+	printf("\n\n");
 
-	for (int i = 0; i < NUM; i++)
-		inode_num[i] = syscall(SYS_alloc_inode);
+	ip_1->disk_info.nlink = 0;
+	inode_unlock(ip_1);
+	inode_put(ip_1);
 
-	syscall(SYS_flush_buffer, N_BUFFER);
-	syscall(SYS_show_bitmap, 1);
+	/* 大批量读写测试 */
 
-	for (int i = 0; i < NUM; i++)
-		syscall(SYS_free_inode, inode_num[i]);
+	char *big_src, big_dst[9];
+	big_dst[8] = 0;
 
-	syscall(SYS_flush_buffer, N_BUFFER);
-	syscall(SYS_show_bitmap, 1);
+	/* 申请五个连续物理页面 (初始化阶段, 通常来说能拿到连续的) */
+	big_src = pmem_alloc(true);
+	assert(pmem_alloc(true) == big_src + PGSIZE, "contiguous fail!");
+	assert(pmem_alloc(true) == big_src + PGSIZE * 2, "contiguous fail!");
+	assert(pmem_alloc(true) == big_src + PGSIZE * 3, "contiguous fail!");
+	assert(pmem_alloc(true) == big_src + PGSIZE * 4, "contiguous fail!");
+
+	for (uint32 i = 0; i < 5 * (PGSIZE / 8); i++)
+		for (uint32 j = 0; j < 8; j++)
+			big_src[i * 8 + j] = 'A' + j;
+
+	ip_2 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	inode_lock(ip_2);
+	inode_print(ip_2, "big_data");
+
+	printf("writing data...\n\n");
+	cut_len = PGSIZE * 4 + 1110;
+	for (uint32 offset = 0; offset < cut_len * 10000; offset += cut_len)
+	{
+		len = inode_write_data(ip_2, offset, cut_len, big_src, false);
+		assert(len == cut_len, "write fail 2!");
+	}
+	inode_print(ip_2, "big_data");
+
+	len = inode_read_data(ip_1, cut_len * 10000 - 8, 8, big_dst, false);
+	assert(len == 8, "read fail 2");
+	printf("read data: %s\n", big_dst);
+
+
+	ip_2->disk_info.nlink = 0;
+	inode_unlock(ip_2);
+	inode_put(ip_2);
+
+	pmem_free((uint64)big_src, true);
+	pmem_free((uint64)big_src + PGSIZE, true);
+	pmem_free((uint64)big_src + PGSIZE * 2, true);
+	pmem_free((uint64)big_src + PGSIZE * 3, true);
+	pmem_free((uint64)big_src + PGSIZE * 4, true);
+
+
+	printf("============= test end =============\n");
 
 	while(1);
-}
 ```
 
 
-**test-3**
+预期结果见 `./picture/test-3.png`
 
 ```c
-#include "sys.h"
+    /* fs_init in fs.c */
+	printf("============= test begin =============\n\n");
 
-#define PGSIZE 4096
-#define N_BUFFER 8
-#define BLOCK_BASE 5000
+	inode_t *rooti, *ip_1, *ip_2, *ip_3;
+	uint32 inode_num_1, inode_num_2, inode_num_3;
+	uint32 len, cutlen, offset;
+	char tmp[10];
 
-int main()
-{
-	char data[PGSIZE], tmp[PGSIZE];
-	unsigned long long buffer[N_BUFFER];
+	tmp[9] = 0;
+	cutlen = 9;
+	rooti = inode_get(ROOT_INODE);
 
-	/*-------------一阶段测试: READ WRITE------------- */
+	/* 搜索预置的dentry */
 
-	/* 准备字符串"ABCDEFGH" */
-	for (int i = 0; i < 8; i++)
-		data[i] = 'A' + i;
-	data[8] = '\n';
-	data[9] = '\0';
+	inode_lock(rooti);
+	inode_num_1 = dentry_search(rooti, "ABCD.txt");
+	inode_num_2 = dentry_search(rooti, "abcd.txt");
+	inode_num_3 = dentry_search(rooti, ".");
+	if (inode_num_1 == INVALID_INODE_NUM || 
+		inode_num_2 == INVALID_INODE_NUM || 
+		inode_num_3 == INVALID_INODE_NUM) {
+		panic("invalid inode num!");
+	}
+	dentry_print(rooti);
+	inode_unlock(rooti);
 
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-1 ");
-	syscall(SYS_show_buffer);
+	ip_1 = inode_get(inode_num_1);
+	inode_lock(ip_1);
+	ip_2 = inode_get(inode_num_2);
+	inode_lock(ip_2);
+	ip_3 = inode_get(inode_num_3);
+	inode_lock(ip_3);
 
-	/* 向BLOCK_BASE写入字符 */
-	buffer[0] = syscall(SYS_get_block, BLOCK_BASE);
-	syscall(SYS_write_block, buffer[0], data);
-	syscall(SYS_put_block, buffer[0]);
+	inode_print(ip_1, "ABCD.txt");
+	inode_print(ip_2, "abcd.txt");
+	inode_print(ip_3, "root");
 
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-2 ");
-	syscall(SYS_show_buffer);
+	len = inode_read_data(ip_1, 0, cutlen, tmp, false);
+	assert(len == cutlen, "read fail 1!");
+	printf("\nread data: %s\n", tmp);
 
-	/* 清空内存副本, 确保后面从磁盘中重新读取 */
-	syscall(SYS_flush_buffer, N_BUFFER);
+	len = inode_read_data(ip_2, 0, cutlen, tmp, false);
+	assert(len == cutlen, "read fail 2!");
+	printf("read data: %s\n\n", tmp);
 
-	/* 读取BLOCK_BASE*/
-	buffer[0] = syscall(SYS_get_block, BLOCK_BASE);
-	syscall(SYS_read_block, buffer[0], tmp);
-	syscall(SYS_put_block, buffer[0]);
+	inode_unlock(ip_1);
+	inode_unlock(ip_2);
+	inode_unlock(ip_3);
+	inode_put(ip_1);
+	inode_put(ip_2);
+	inode_put(ip_3);
 
-	/* 比较写入的字符串和读到的字符串 */
-	syscall(SYS_print_str, "\n");
-	syscall(SYS_print_str, "write data: ");
-	syscall(SYS_print_str, data);
-	syscall(SYS_print_str, "read data: ");
-	syscall(SYS_print_str, tmp);
+	/* 创建和删除dentry */
+	inode_lock(rooti);
 
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-3 ");
-	syscall(SYS_show_buffer);
-
-	/*-------------二阶段测试: GET PUT FLUSH------------- */
+	ip_1 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);	
+	offset = dentry_create(rooti, ip_1->inode_num, "new_dir");
+	inode_num_1 = dentry_search(rooti, "new_dir");
+	printf("new dentry offset = %d\n", offset);
+	printf("new dentry inode_num = %d\n\n", inode_num_1);
 	
-	/* GET */
-	buffer[0] = syscall(SYS_get_block, BLOCK_BASE);
-	buffer[3] = syscall(SYS_get_block, BLOCK_BASE + 3);
-	buffer[7] = syscall(SYS_get_block, BLOCK_BASE + 7);
-	buffer[2] = syscall(SYS_get_block, BLOCK_BASE + 2);
-	buffer[4] = syscall(SYS_get_block, BLOCK_BASE + 4);
+	dentry_print(rooti);
 
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-4 ");
-	syscall(SYS_show_buffer);
+	inode_num_2 = dentry_delete(rooti, "new_dir");
+	assert(inode_num_1 == inode_num_2, "inode num is not equal!");
 
-	/* PUT */
-	syscall(SYS_put_block, buffer[7]);
-	syscall(SYS_put_block, buffer[0]);
-	syscall(SYS_put_block, buffer[4]);
+	dentry_print(rooti);
 
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-5 ");
-	syscall(SYS_show_buffer);
+	inode_unlock(rooti);
+	inode_put(rooti);
 
-	/* FLUSH */
-	syscall(SYS_flush_buffer, 3);
-
-	/* 查看此时的buffer_cache状态 */
-	syscall(SYS_print_str, "\nstate-6 ");
-	syscall(SYS_show_buffer);
+	printf("============= test end =============\n");
 
 	while(1);
-}
+```
+
+**测试4: 文件路径的解析**
+
+
+```c
+    /* fs_init in fs.c */
+
+    printf("============= test begin =============\n\n");
+
+	inode_t *rooti, *ip_1, *ip_2, *ip_3, *ip_4, *ip_5;
+	
+	/* 准备测试环境 */
+
+	rooti = inode_get(ROOT_INODE);
+	ip_1 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	ip_2 = inode_create(INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	ip_3 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+	
+	inode_lock(rooti);
+	inode_lock(ip_1);
+	inode_lock(ip_2);
+	inode_lock(ip_3);
+
+	if (dentry_create(rooti, ip_1->inode_num, "AABBC") == -1)
+		panic("dentry_create fail 1!");
+	if (dentry_create(ip_1, ip_2->inode_num, "aaabb") == -1)
+		panic("dentry_create fail 2!");
+	if (dentry_create(ip_2, ip_3->inode_num, "file.txt") == -1)
+		panic("dentry_create fail 3!");
+
+	char tmp1[] = "This is file context!";
+	char tmp2[32];
+	inode_write_data(ip_3, 0, sizeof(tmp1), tmp1, false);
+
+	inode_rw(rooti, true);
+	inode_rw(ip_1, true);
+	inode_rw(ip_2, true);
+
+	inode_unlock(rooti);
+	inode_unlock(ip_1);
+	inode_unlock(ip_2);
+	inode_unlock(ip_3);
+	inode_put(rooti);
+	inode_put(ip_1);
+	inode_put(ip_2);
+	inode_put(ip_3);
+
+	char *path = "///AABBC///aaabb/file.txt";
+	char name[MAXLEN_FILENAME];
+
+	ip_4 = path_to_inode(path);
+	if (ip_4 == NULL)
+		panic("invalid ip_4");
+
+	ip_5 = path_to_parent_inode(path, name);
+	if (ip_5 == NULL)
+		panic("invalid ip_5");
+	
+	printf("get a name = %s\n\n", name);
+
+	inode_lock(ip_4);
+	inode_lock(ip_5);
+
+	inode_print(ip_4, "file.txt");
+	inode_print(ip_5, "aaabb");
+
+	inode_read_data(ip_4, 0, 32, tmp2, false);
+	printf("read data: %s\n\n", tmp2);
+
+	inode_unlock(ip_4);
+	inode_unlock(ip_5);
+	inode_put(ip_4);
+	inode_put(ip_5);
+
+	printf("============= test end =============\n");
 ```
