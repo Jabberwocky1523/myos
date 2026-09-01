@@ -59,15 +59,6 @@ void buffer_init(void)
     insert_node(&b->node, false, false);
   }
 }
-
-bool buffer_valid_pointer(buffer_t *b)
-{
-  uint64 address = (uint64)b;
-  return address >= (uint64)&buffers[0] &&
-         address < (uint64)&buffers[N_BUFFER] &&
-         (address - (uint64)&buffers[0]) % sizeof(buffer_t) == 0;
-}
-
 buffer_t *buffer_get(uint32 block_num)
 {
   if (block_num >= FS_NBLOCKS)
@@ -108,7 +99,7 @@ buffer_t *buffer_get(uint32 block_num)
 
 void buffer_read(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock))
+  if (!sleeplock_holding(&b->lock))
     panic("buffer_read lock");
   if (!b->valid)
   {
@@ -119,7 +110,7 @@ void buffer_read(buffer_t *b)
 
 void buffer_write(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock) ||
+  if (!sleeplock_holding(&b->lock) ||
       b->data == NULL)
     panic("buffer_write lock");
   virtio_disk_rw(b, true);
@@ -128,7 +119,7 @@ void buffer_write(buffer_t *b)
 
 void buffer_put(buffer_t *b)
 {
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock))
+  if (!sleeplock_holding(&b->lock))
     panic("buffer_put lock");
   spinlock_acquire(&cache_lock);
   if (b->ref == 0)

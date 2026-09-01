@@ -143,7 +143,7 @@ uint64 sys_show_bitmap(void)
 static buffer_t *arg_buffer(int n)
 {
   buffer_t *b = (buffer_t *)arg_raw(n);
-  if (!buffer_valid_pointer(b) || !sleeplock_holding(&b->lock))
+  if (!sleeplock_holding(&b->lock))
     return NULL;
   return b;
 }
