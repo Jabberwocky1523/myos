@@ -7,7 +7,8 @@ OBJDUMP := $(TOOLPREFIX)objdump
 
 QEMU ?= qemu-system-riscv64
 
-CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O2 -g -ffreestanding -fno-common \
+CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O1 -freorder-functions -g \
+	-ffreestanding -fno-common \
 	-fno-builtin -fno-omit-frame-pointer -fno-pie -fno-stack-protector \
 	-mcmodel=medany -march=rv64gc -mabi=lp64d -nostdlib -nostartfiles \
 	-I src/kernel

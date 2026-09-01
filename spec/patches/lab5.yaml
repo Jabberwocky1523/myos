@@ -32,6 +32,10 @@ required_updates:
   module: toolchain
   change: 把uvm、mmap和syscall目录的对象加入内核构建，并在用户入口重建后重新生成内嵌initcode。
   reason: 用户虚拟内存和系统调用实现必须与调用它们的用户入口一起进入同一阶段镜像。
+- target: common.mk
+  module: toolchain
+  change: 全局使用-O1和-freorder-functions，同时保留-fno-omit-frame-pointer。
+  reason: 避免编译器在Lab5大栈数组的指定访问前先访问栈底，并保证main继续位于固定用户入口0x1000。
 new_invariants:
 - 系统调用不能绕过用户页表验证
 - 地址空间修改失败不得破坏原有已发布映射

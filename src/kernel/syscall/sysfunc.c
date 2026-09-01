@@ -20,8 +20,7 @@ uint64 sys_copyin(void)
   int values[SYSCALL_COPY_MAX / sizeof(int)];
   arg_uint64(0, &src);
   arg_uint32(1, &len);
-  int rc = (len == 0 || len > SYSCALL_COPY_MAX / sizeof(int)) ? -1 :
-      uvm_copyin(p->pgtbl, (uint64)values, src, len * sizeof(int));
+  int rc = (len == 0 || len > SYSCALL_COPY_MAX / sizeof(int)) ? -1 : uvm_copyin(p->pgtbl, (uint64)values, src, len * sizeof(int));
   if (rc < 0)
   {
     printf("copyin failed src=%x len=%d\n", src, (int)len);
