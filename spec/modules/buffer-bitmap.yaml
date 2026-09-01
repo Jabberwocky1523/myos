@@ -98,19 +98,6 @@ functions:
       - 从后向前遍历非活跃链表, 尝试释放buffer_count个buffer持有的物理内存(data)；返回成功释放资源的buffer数量。
     errors:
       - 源码未定义独立错误返回；调用者需满足前置条件并处理下游调用的失败语义。
-  - name: buffer_invalidate
-    comment:
-      purpose: 实现buffer_invalidate在当前模块中的代码行为。
-      input:
-        - buffer_count（uint32）：操作数量或长度。
-      output: 返回uint32类型的状态值或计算结果；具体取值由源码中的返回分支定义。
-    pre:
-      - 输入参数必须满足源码中的指针有效性、地址范围、长度和对象状态约束。
-      - 调用者必须满足源码assert检查的锁、类型或状态条件。
-    post:
-      - 实现buffer_invalidate在当前模块中的代码行为。
-    errors:
-      - 源码断言不成立时触发assert诊断。
   - name: bitmap_search_and_set
     comment:
       purpose: 查询一个block中的所有bit, 找到空闲bit, 设置1并返回；如果没有空闲bit, 返回-1。
