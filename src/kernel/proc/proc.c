@@ -108,6 +108,19 @@ void proc_free(proc_t *p)
     mmap_region_free(r);
     r = next;
   }
+  for (uint32 i = 0; i < N_OPEN_FILE; ++i)
+  {
+    if (p->open_file[i] != NULL)
+    {
+      file_close(p->open_file[i]);
+      p->open_file[i] = NULL;
+    }
+  }
+  if (p->cwd != NULL)
+  {
+    inode_put(p->cwd);
+    p->cwd = NULL;
+  }
   if (p->pgtbl != NULL)
     uvm_destroy_pgtbl(p->pgtbl);
   if (p->trapframe != NULL)
@@ -154,6 +167,16 @@ void proc_return(void)
   spinlock_release(&p->lock);
   if (__atomic_exchange_n(&fs_started, 1, __ATOMIC_ACQ_REL) == 0)
     fs_init();
+  if (p->cwd == NULL)
+  {
+    p->cwd = inode_get(ROOT_INODE);
+    p->open_file[0] = file_open("/dev/stdin", OPEN_READ);
+    p->open_file[1] = file_open("/dev/stdout", OPEN_WRITE);
+    p->open_file[2] = file_open("/dev/stderr", OPEN_WRITE);
+    if (p->cwd == NULL || p->open_file[0] == NULL ||
+        p->open_file[1] == NULL || p->open_file[2] == NULL)
+      panic("standard files");
+  }
   trap_user_return();
 }
 
@@ -191,6 +214,10 @@ int proc_fork(void)
   memmove(child->trapframe, parent->trapframe, sizeof(*child->trapframe));
   child->trapframe->a0 = 0;
   child->name = parent->name;
+  for (uint32 i = 0; i < N_OPEN_FILE; ++i)
+    if (parent->open_file[i] != NULL)
+      child->open_file[i] = file_dup(parent->open_file[i]);
+  child->cwd = inode_dup(parent->cwd);
   spinlock_acquire(&wait_lock);
   child->parent = parent;
   spinlock_release(&wait_lock);

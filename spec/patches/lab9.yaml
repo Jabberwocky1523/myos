@@ -111,3 +111,5 @@ verification:
   - /dev/zero返回请求长度且所有整数为0。
   - /dev/null写入返回请求长度、读取返回0。
   - gpt0对每个问题产生响应且测试进程以0退出。
+- new_invariants:
+  - test_1、test_2、test_3和test_4的用户ELF必须来自当前构建而非旧产物.源.c文件已经在src/user下

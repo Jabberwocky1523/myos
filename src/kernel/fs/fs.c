@@ -2,7 +2,11 @@
 #include "../lib/method.h"
 #include "../lock/method.h"
 #include "../mem/method.h"
+#include "../proc/method.h"
 superblock_t superblock;
+
+static spinlock_t file_table_lock;
+static file_t file_table[N_FILE];
 
 /* Print the validated disk geometry. */
 void sb_print(void)
@@ -54,91 +58,224 @@ void fs_init(void)
     sleeplock_init(&inode_cache[i].slk, "inode");
     inode_cache[i].inode_num = INVALID_INODE_NUM;
   }
+  file_init();
+  device_init();
   sb_print();
-  printf("============= test begin =============\n\n");
+}
 
-  inode_t *ip_1, *ip_2;
-  uint32 len, cut_len;
-
-  /* 小批量读写测试 */
-
-  int small_src[10], small_dst[10];
-  for (int i = 0; i < 10; i++)
-    small_src[i] = i;
-
-  ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  inode_lock(ip_1);
-  inode_print(ip_1, "small_data");
-
-  printf("writing data...\n\n");
-  cut_len = 10 * sizeof(int);
-  for (uint32 offset = 0; offset < 400 * cut_len; offset += cut_len)
+/* Initialize the global file object pool. */
+void file_init(void)
+{
+  spinlock_init(&file_table_lock, "file table");
+  for (uint32 i = 0; i < N_FILE; ++i)
   {
-    len = inode_write_data(ip_1, offset, cut_len, small_src, false);
-    assert(len == cut_len, "write fail 1!");
+    memset(&file_table[i], 0, sizeof(file_table[i]));
+    spinlock_init(&file_table[i].lock, "file");
   }
-  inode_print(ip_1, "small_data");
+}
 
-  len = inode_read_data(ip_1, 120 * cut_len + 4, cut_len, small_dst, false);
-  assert(len == cut_len, "read fail 1!");
-  printf("read data:");
-  for (int i = 0; i < 10; i++)
-    printf(" %d", small_dst[i]);
-  printf("\n\n");
-
-  ip_1->disk_info.nlink = 0;
-  inode_unlock(ip_1);
-  inode_put(ip_1);
-
-  /* 大批量读写测试 */
-
-  char *big_src, big_dst[9];
-  uint64 big_pages[5];
-  big_dst[8] = 0;
-
-  /* 申请五个连续物理页面 (初始化阶段, 通常来说能拿到连续的) */
-  for (uint32 i = 0; i < 5; i++)
+/* Reserve one file object with a single owning reference. */
+file_t *file_alloc(void)
+{
+  spinlock_acquire(&file_table_lock);
+  for (uint32 i = 0; i < N_FILE; ++i)
   {
-    big_pages[i] = pmem_alloc(true);
-    if (i != 0)
-      assert(big_pages[i] == big_pages[0] - PGSIZE * i,
-             "contiguous fail!");
+    if (file_table[i].ref == 0)
+    {
+      file_table[i].ref = 1;
+      file_table[i].readable = false;
+      file_table[i].writable = false;
+      file_table[i].offset = 0;
+      file_table[i].inode = NULL;
+      spinlock_release(&file_table_lock);
+      return &file_table[i];
+    }
   }
-  /* pmem_alloc按地址从高到低返回，连续区的起点是最后分配的页。 */
-  big_src = (char *)big_pages[4];
+  spinlock_release(&file_table_lock);
+  return NULL;
+}
 
-  for (uint32 i = 0; i < 5 * (PGSIZE / 8); i++)
-    for (uint32 j = 0; j < 8; j++)
-      big_src[i * 8 + j] = 'A' + j;
+/* Open an existing inode or create a regular file when requested. */
+file_t *file_open(char *path, uint32 open_mode)
+{
+  if (path == NULL || (open_mode & (OPEN_READ | OPEN_WRITE)) == 0 ||
+      (open_mode & ~(OPEN_CREATE | OPEN_READ | OPEN_WRITE)) != 0)
+    return NULL;
+  inode_t *ip = path_to_inode(path);
+  if (ip == NULL && (open_mode & OPEN_CREATE) != 0)
+    ip = path_create_inode(path, INODE_TYPE_FILE, INODE_MAJOR_DEFAULT,
+                           INODE_MINOR_DEFAULT);
+  if (ip == NULL)
+    return NULL;
 
-  ip_2 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  inode_lock(ip_2);
-  inode_print(ip_2, "big_data");
-
-  printf("writing data...\n\n");
-  cut_len = PGSIZE * 4 + 1110;
-  for (uint32 offset = 0; offset < cut_len * 10000; offset += cut_len)
+  inode_lock(ip);
+  bool valid = ip->disk_info.type != INODE_TYPE_NONE;
+  if (ip->disk_info.type == INODE_TYPE_DIRECTORY &&
+      (open_mode & OPEN_WRITE) != 0)
+    valid = false;
+  if (ip->disk_info.type == INODE_TYPE_DEVICE &&
+      !device_open_check(ip->disk_info.major, open_mode))
+    valid = false;
+  inode_unlock(ip);
+  if (!valid)
   {
-    len = inode_write_data(ip_2, offset, cut_len, big_src, false);
-    assert(len == cut_len, "write fail 2!");
+    inode_put(ip);
+    return NULL;
   }
-  inode_print(ip_2, "big_data");
 
-  len = inode_read_data(ip_2, cut_len * 10000 - 8, 8, big_dst, false);
-  assert(len == 8, "read fail 2");
-  printf("read data: %s\n", big_dst);
+  file_t *file = file_alloc();
+  if (file == NULL)
+  {
+    inode_put(ip);
+    return NULL;
+  }
+  file->readable = (open_mode & OPEN_READ) != 0;
+  file->writable = (open_mode & OPEN_WRITE) != 0;
+  file->inode = ip;
+  return file;
+}
 
-  ip_2->disk_info.nlink = 0;
-  inode_unlock(ip_2);
-  inode_put(ip_2);
+/* Drop a file reference and release its inode after the final close. */
+void file_close(file_t *file)
+{
+  if (file == NULL)
+    return;
+  spinlock_acquire(&file_table_lock);
+  if (file->ref == 0)
+  {
+    spinlock_release(&file_table_lock);
+    panic("file_close ref");
+  }
+  file->ref--;
+  if (file->ref != 0)
+  {
+    spinlock_release(&file_table_lock);
+    return;
+  }
+  inode_t *ip = file->inode;
+  file->inode = NULL;
+  file->readable = false;
+  file->writable = false;
+  file->offset = 0;
+  spinlock_release(&file_table_lock);
+  inode_put(ip);
+}
 
-  for (uint32 i = 0; i < 5; i++)
-    pmem_free(big_pages[i], true);
+/* Read data or a device stream and advance the shared file offset. */
+int file_read(file_t *file, uint32 len, uint64 dst, bool is_user_dst)
+{
+  if (file == NULL || !file->readable || file->inode == NULL)
+    return -1;
+  inode_t *ip = file->inode;
+  inode_lock(ip);
+  int result;
+  if (ip->disk_info.type == INODE_TYPE_FILE)
+  {
+    result = inode_read_data(ip, file->offset, len, (void *)dst,
+                             is_user_dst);
+    if (result > 0)
+      file->offset += (uint32)result;
+  }
+  else if (ip->disk_info.type == INODE_TYPE_DEVICE)
+    result = (int)device_read_data(ip->disk_info.major, len, dst,
+                                   is_user_dst);
+  else
+    result = -1;
+  inode_unlock(ip);
+  return result;
+}
 
-  printf("============= test end =============\n");
+/* Write data or a device stream and advance the shared file offset. */
+int file_write(file_t *file, uint32 len, uint64 src, bool is_user_src)
+{
+  if (file == NULL || !file->writable || file->inode == NULL)
+    return -1;
+  inode_t *ip = file->inode;
+  inode_lock(ip);
+  int result;
+  if (ip->disk_info.type == INODE_TYPE_FILE)
+  {
+    result = inode_write_data(ip, file->offset, len, (void *)src,
+                              is_user_src);
+    if (result > 0)
+      file->offset += (uint32)result;
+  }
+  else if (ip->disk_info.type == INODE_TYPE_DEVICE)
+    result = (int)device_write_data(ip->disk_info.major, len, src,
+                                    is_user_src);
+  else
+    result = -1;
+  inode_unlock(ip);
+  return result;
+}
 
-  while (1)
-    ;
+/* Move a regular file offset with saturating bounds. */
+int file_lseek(file_t *file, uint32 lseek_offset, uint32 lseek_flag)
+{
+  if (file == NULL || file->inode == NULL || lseek_flag > LSEEK_SUB)
+    return -1;
+  inode_lock(file->inode);
+  if (file->inode->disk_info.type != INODE_TYPE_FILE)
+  {
+    inode_unlock(file->inode);
+    return -1;
+  }
+  uint32 size = file->inode->disk_info.size;
+  if (lseek_flag == LSEEK_SET)
+    file->offset = lseek_offset > size ? size : lseek_offset;
+  else if (lseek_flag == LSEEK_ADD)
+    file->offset = lseek_offset > size - file->offset ? size :
+                   file->offset + lseek_offset;
+  else
+    file->offset = lseek_offset > file->offset ? 0 :
+                   file->offset - lseek_offset;
+  int result = (int)file->offset;
+  inode_unlock(file->inode);
+  return result;
+}
+
+/* Add a reference to a shared file object. */
+file_t *file_dup(file_t *file)
+{
+  if (file == NULL)
+    return NULL;
+  spinlock_acquire(&file_table_lock);
+  if (file->ref == 0)
+  {
+    spinlock_release(&file_table_lock);
+    return NULL;
+  }
+  file->ref++;
+  spinlock_release(&file_table_lock);
+  return file;
+}
+
+/* Copy stable inode and offset metadata to the current user process. */
+int file_get_stat(file_t *file, uint64 user_dst)
+{
+  if (file == NULL || file->inode == NULL || user_dst == 0)
+    return -1;
+  file_stat_t stat;
+  inode_lock(file->inode);
+  if (file->inode->disk_info.type == INODE_TYPE_FILE)
+    stat.type = FILE_TYPE_DATA;
+  else if (file->inode->disk_info.type == INODE_TYPE_DIRECTORY)
+    stat.type = FILE_TYPE_DIR;
+  else if (file->inode->disk_info.type == INODE_TYPE_DEVICE)
+    stat.type = FILE_TYPE_DEVICE;
+  else
+  {
+    inode_unlock(file->inode);
+    return -1;
+  }
+  stat.nlink = file->inode->disk_info.nlink;
+  stat.size = file->inode->disk_info.size;
+  stat.inode_num = file->inode->inode_num;
+  stat.offset = file->offset;
+  inode_unlock(file->inode);
+  proc_t *p = myproc();
+  return p == NULL ? -1 : uvm_copyout(p->pgtbl, user_dst,
+                                       (uint64)&stat, sizeof(stat));
 }
 
 /* Transfer one whole block between disk and a kernel buffer. */

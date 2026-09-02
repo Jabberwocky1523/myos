@@ -3,6 +3,7 @@
 #include "method.h"
 #include "../lock/method.h"
 #include "../arch/method.h"
+#include "../fs/mod.h"
 
 static spinlock_t print_lock;
 static const char digits[] = "0123456789abcdef";
@@ -62,6 +63,7 @@ void print_init(void)
 {
   uart_init();
   spinlock_init(&print_lock, "printf");
+  cons_init();
 }
 
 void printf(const char *fmt, ...)

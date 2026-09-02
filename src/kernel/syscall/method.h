@@ -2,6 +2,7 @@
 #define KERNEL_SYSCALL_METHOD_H
 
 #include "type.h"
+#include "../fs/type.h"
 
 void syscall(void);
 uint64 arg_raw(int n);
@@ -19,6 +20,21 @@ uint64 sys_fork(void);
 uint64 sys_wait(void);
 uint64 sys_exit(void);
 uint64 sys_sleep(void);
+uint64 sys_exec(void);
+int alloc_fd(file_t *file);
+uint64 sys_open(void);
+uint64 sys_close(void);
+uint64 sys_read(void);
+uint64 sys_write(void);
+uint64 sys_lseek(void);
+uint64 sys_dup(void);
+uint64 sys_fstat(void);
+uint64 sys_get_dentries(void);
+uint64 sys_mkdir(void);
+uint64 sys_chdir(void);
+uint64 sys_print_cwd(void);
+uint64 sys_link(void);
+uint64 sys_unlink(void);
 uint64 sys_alloc_block(void);
 uint64 sys_free_block(void);
 uint64 sys_alloc_inode(void);

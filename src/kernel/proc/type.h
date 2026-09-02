@@ -5,6 +5,30 @@
 #include "../arch/type.h"
 #include "../lock/type.h"
 #include "../mem/type.h"
+#include "../fs/type.h"
+
+#define ELF_MAGIC 0x464c457fU
+#define ELF_MAXARGS 32U
+#define ELF_MAXARG_LEN (PAGE_SIZE / ELF_MAXARGS)
+
+typedef struct elf_header
+{
+  uint32 magic;
+  uint8 elf[12];
+  uint16 type;
+  uint16 machine;
+  uint32 version;
+  uint64 entry;
+  uint64 phoff;
+  uint64 shoff;
+  uint32 flags;
+  uint16 ehsize;
+  uint16 phentsize;
+  uint16 phnum;
+  uint16 shentsize;
+  uint16 shnum;
+  uint16 shstrndx;
+} elf_header_t;
 
 typedef struct context
 {
@@ -88,6 +112,8 @@ typedef struct proc
   uint64 heap_top;
   uint64 ustack_npage;
   mmap_region_t *mmap;
+  file_t *open_file[N_OPEN_FILE];
+  inode_t *cwd;
   context_t context;
   const char *name;
 } proc_t;

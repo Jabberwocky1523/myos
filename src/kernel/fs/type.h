@@ -43,6 +43,30 @@
 #define DENTRY_NAME_SIZE 60U
 #define DENTRY_PER_BLOCK (BLOCK_SIZE / sizeof(dentry_t))
 
+#define N_FILE 128U
+#define N_OPEN_FILE 16U
+#define N_DEVICE 16U
+#define CONSOLE_BUFFER_SIZE 128U
+
+#define OPEN_CREATE 0x01U
+#define OPEN_READ 0x02U
+#define OPEN_WRITE 0x04U
+
+#define LSEEK_SET 0U
+#define LSEEK_ADD 1U
+#define LSEEK_SUB 2U
+
+#define FILE_TYPE_DATA 0U
+#define FILE_TYPE_DIR 1U
+#define FILE_TYPE_DEVICE 2U
+
+#define DEVICE_STDIN 1U
+#define DEVICE_STDOUT 2U
+#define DEVICE_STDERR 3U
+#define DEVICE_ZERO 4U
+#define DEVICE_NULL 5U
+#define DEVICE_GPT0 6U
+
 #define BUFFER_BLOCK_NONE 0xffffffffU
 
 /* index字段相关 */
@@ -94,6 +118,43 @@ typedef struct dentry
   char name[DENTRY_NAME_SIZE];
 } dentry_t;
 
+typedef struct file_stat
+{
+  uint16 type;
+  uint16 nlink;
+  uint32 size;
+  uint32 inode_num;
+  uint32 offset;
+} file_stat_t;
+
+typedef struct file
+{
+  spinlock_t lock;
+  uint32 ref;
+  bool readable;
+  bool writable;
+  uint32 offset;
+  inode_t *inode;
+} file_t;
+
+typedef uint32 (*device_io_fn_t)(uint32, uint64, bool);
+
+typedef struct device
+{
+  char *name;
+  device_io_fn_t read;
+  device_io_fn_t write;
+} device_t;
+
+typedef struct console
+{
+  spinlock_t lock;
+  char buf[CONSOLE_BUFFER_SIZE];
+  uint32 read;
+  uint32 write;
+  uint32 edit;
+} console_t;
+
 typedef struct buffer buffer_t;
 
 typedef struct buffer_node
@@ -118,6 +179,8 @@ _Static_assert(sizeof(inode_disk_t) == FS_INODE_SIZE,
                "on-disk inode must be 64 bytes");
 _Static_assert(sizeof(dentry_t) == 64,
                "on-disk dentry must be 64 bytes");
+_Static_assert(sizeof(file_stat_t) == 16,
+               "file stat ABI must match user space");
 
 typedef struct virtq_desc
 {

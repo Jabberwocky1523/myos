@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@ static int global_block_num = 0; // 全局的block_num
 static char bitmap_buf[BLOCK_SIZE]; // bitmap区域的读写缓冲 供block_alloc和inode_alloc使用
 static char inode_buf[BLOCK_SIZE];  // inode区域的读写缓冲 供inode_rw使用
 static char data_buf[BLOCK_SIZE];   // data区的读写缓冲 block_rw使用
+static char input_buf[BLOCK_SIZE];  // 用户ELF输入缓冲
 
 /*-------------------------关于小端序-------------------------*/
 
@@ -135,65 +137,116 @@ void inode_init(inode_disk_t *ip, short type, short major, short minor)
     ip->index[i] = 0;
 }
 
-/* 对inode管理的数据做追加写 */
-void inode_append(inode_disk_t *ip, void *data, unsigned int len)
+/* 获取或分配一个直接、一级间接或二级间接数据块。 */
+unsigned int get_or_alloc_block(inode_disk_t *ip, unsigned int logical_block)
 {
-  unsigned int old_blocks, new_blocks;
-  unsigned int cut_len, tar_len;
-  unsigned int tmp, offset;
-  char *data_new = (char *)data;
-
-  old_blocks = COUNT_BLOCKS(ip->size, BLOCK_SIZE);
-  new_blocks = COUNT_BLOCKS(ip->size + len, BLOCK_SIZE);
-  tmp = ip->size / BLOCK_SIZE;
-  tar_len = len;
-
-  /* 如果有必要, 扩充block空间 */
-  if (new_blocks > old_blocks)
+  unsigned int index[BLOCK_SIZE / sizeof(unsigned int)];
+  unsigned int per_block = BLOCK_SIZE / sizeof(unsigned int);
+  if (logical_block < INODE_INDEX_1)
   {
-    if (new_blocks > INODE_BLOCK_INDEX_1)
-    { // 出于简化考虑, 暂不启用间接映射
-      printf("inode_append: data len out of space!\n");
-      return;
-    }
-    for (unsigned int i = old_blocks; i < new_blocks; i++)
-      ip->index[i] = block_alloc();
+    if (ip->index[logical_block] == 0)
+      ip->index[logical_block] = block_alloc();
+    return ip->index[logical_block];
   }
 
-  /* 分段写入各个block */
-  while (len > 0)
+  logical_block -= INODE_INDEX_1;
+  if (logical_block < 2U * per_block)
   {
-    if (tmp == ip->size / BLOCK_SIZE)
-    { /* last old block */
-      cut_len = MIN(BLOCK_SIZE - (ip->size % BLOCK_SIZE), len);
-      offset = ip->size % BLOCK_SIZE;
-      block_rw(ip->index[tmp], data_buf, false);
-      memcpy(data_buf + offset, data_new, cut_len);
+    unsigned int root_slot = INODE_INDEX_1 + logical_block / per_block;
+    unsigned int slot = logical_block % per_block;
+    if (ip->index[root_slot] == 0)
+    {
+      ip->index[root_slot] = block_alloc();
+      memset(index, 0, sizeof(index));
+      block_rw(ip->index[root_slot], index, true);
     }
     else
-    { /* new block */
-      cut_len = MIN(BLOCK_SIZE, len);
-      memcpy(data_buf, data_new, cut_len);
+      block_rw(ip->index[root_slot], index, false);
+    if (index[slot] == 0)
+    {
+      index[slot] = block_alloc();
+      block_rw(ip->index[root_slot], index, true);
     }
-    block_rw(ip->index[tmp], data_buf, true);
-
-    len -= cut_len;
-    data_new += cut_len;
-    tmp++;
+    return index[slot];
   }
-  ip->size += tar_len;
+
+  logical_block -= 2U * per_block;
+  unsigned int first = logical_block / per_block;
+  unsigned int second = logical_block % per_block;
+  if (first >= per_block)
+  {
+    fprintf(stderr, "file exceeds inode index capacity\n");
+    exit(1);
+  }
+  if (ip->index[INODE_INDEX_2] == 0)
+  {
+    ip->index[INODE_INDEX_2] = block_alloc();
+    memset(index, 0, sizeof(index));
+    block_rw(ip->index[INODE_INDEX_2], index, true);
+  }
+  else
+    block_rw(ip->index[INODE_INDEX_2], index, false);
+  unsigned int branch = index[first];
+  if (branch == 0)
+  {
+    branch = block_alloc();
+    index[first] = branch;
+    block_rw(ip->index[INODE_INDEX_2], index, true);
+    memset(index, 0, sizeof(index));
+    block_rw(branch, index, true);
+  }
+  else
+    block_rw(branch, index, false);
+  if (index[second] == 0)
+  {
+    index[second] = block_alloc();
+    block_rw(branch, index, true);
+  }
+  return index[second];
+}
+
+/* 对inode管理的数据做追加写。 */
+void inode_append(inode_disk_t *ip, void *data, unsigned int len)
+{
+  char *source = data;
+  while (len != 0)
+  {
+    unsigned int block_num = get_or_alloc_block(ip,
+                                                 ip->size / BLOCK_SIZE);
+    unsigned int offset = ip->size % BLOCK_SIZE;
+    unsigned int count = MIN(BLOCK_SIZE - offset, len);
+    block_rw(block_num, data_buf, false);
+    memcpy(data_buf + offset, source, count);
+    block_rw(block_num, data_buf, true);
+    ip->size += count;
+    source += count;
+    len -= count;
+  }
+}
+
+/* 获取路径的末级文件名。 */
+void get_name_from_path(char *path, char *name)
+{
+  char *last = path;
+  for (char *p = path; *p != '\0'; ++p)
+    if (*p == '/')
+      last = p + 1;
+  if (*last == '\0' || strlen(last) >= MAXLEN_FILENAME)
+  {
+    fprintf(stderr, "invalid image filename: %s\n", path);
+    exit(1);
+  }
+  strcpy(name, last);
 }
 
 int main(int argc, char *argv[])
 {
-  (void)argc;
-  (void)argv;
-
+  if (argc < 2)
+  {
+    fprintf(stderr, "usage: %s disk.img [user-elf ...]\n", argv[0]);
+    return 1;
+  }
   assert(BLOCK_SIZE % sizeof(inode_disk_t) == 0);
-
-  inode_disk_t inode[3];
-  unsigned int inode_num[3];
-  dentry_t dentry[4];
 
   /* step-1: 填充 superblock 结构体 */
   sb.magic_num = FS_MAGIC;
@@ -217,49 +270,75 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  /* step-3: 准备一个清零的磁盘映像 */
+  /* step-3: 稀疏扩展为清零磁盘映像 */
   memset(data_buf, 0, BLOCK_SIZE);
-  printf("\nPreparing disk.img...\n\n");
-  for (unsigned int i = 0; i < sb.total_blocks; i++)
-    block_rw(i, data_buf, true);
+  if (ftruncate(disk_fd, (off_t)sb.total_blocks * BLOCK_SIZE) < 0)
+  {
+    perror("ftruncate");
+    return 1;
+  }
+  block_rw(0, data_buf, true);
 
   /* step-4: 制作根目录 */
-  inode_num[0] = inode_alloc();
-  if (inode_num[0] != ROOT_INODE_NUM)
+  inode_disk_t root;
+  unsigned int root_num = inode_alloc();
+  if (root_num != ROOT_INODE_NUM)
   {
-    printf("invalid inode[i]_num = %u\n", inode_num[0]);
+    printf("invalid root inode = %u\n", root_num);
     return -1;
   }
-  inode_init(&inode[0], INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+  inode_init(&root, INODE_TYPE_DIR, INODE_MAJOR_DEFAULT,
+             INODE_MINOR_DEFAULT);
+  dentry_t dentry;
+  memset(&dentry, 0, sizeof(dentry));
+  dentry.inode_num = root_num;
+  strcpy(dentry.name, ".");
+  inode_append(&root, &dentry, sizeof(dentry));
+  strcpy(dentry.name, "..");
+  inode_append(&root, &dentry, sizeof(dentry));
 
-  dentry[0].inode_num = xint(inode_num[0]);
-  dentry[1].inode_num = xint(inode_num[0]);
-  strcpy(dentry[0].name, ".");
-  strcpy(dentry[1].name, "..");
-  inode_append(&inode[0], dentry, sizeof(dentry_t) * 2);
+  /* step-5: 将当前构建的每个用户ELF加入根目录 */
+  for (int argument = 2; argument < argc; ++argument)
+  {
+    int input_fd = open(argv[argument], O_RDONLY);
+    if (input_fd < 0)
+    {
+      perror(argv[argument]);
+      return 1;
+    }
+    inode_disk_t file;
+    unsigned int file_num = inode_alloc();
+    inode_init(&file, INODE_TYPE_DATA, INODE_MAJOR_DEFAULT,
+               INODE_MINOR_DEFAULT);
+    for (;;)
+    {
+      ssize_t count = read(input_fd, input_buf, sizeof(input_buf));
+      if (count < 0)
+      {
+        perror("read user ELF");
+        return 1;
+      }
+      if (count == 0)
+        break;
+      inode_append(&file, input_buf, (unsigned int)count);
+    }
+    close(input_fd);
 
-  /* step-5: 在根目录下创建两个文件 */
-  inode_num[1] = inode_alloc();
-  inode_num[2] = inode_alloc();
-  inode_init(&inode[1], INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-  inode_init(&inode[2], INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+    inode_disk_t disk_file = file;
+    disk_file.type = xshort(disk_file.type);
+    disk_file.major = xshort(disk_file.major);
+    disk_file.minor = xshort(disk_file.minor);
+    disk_file.nlink = xshort(disk_file.nlink);
+    disk_file.size = xint(disk_file.size);
+    for (int i = 0; i < INODE_INDEX_3; ++i)
+      disk_file.index[i] = xint(disk_file.index[i]);
+    inode_rw(file_num, &disk_file, true);
 
-  dentry[2].inode_num = xint(inode_num[1]);
-  dentry[3].inode_num = xint(inode_num[2]);
-  strcpy(dentry[2].name, "ABCD.txt");
-  strcpy(dentry[3].name, "abcd.txt");
-  inode_append(&inode[0], dentry + 2, sizeof(dentry_t) * 2);
-
-  /* step-6: 填充文件内容 */
-  char tmp[26];
-  for (int i = 0; i < 26; i++)
-    tmp[i] = 'A' + i;
-  for (int i = 0; i < 200; i++)
-    inode_append(&inode[1], tmp, sizeof(tmp));
-  for (int i = 0; i < 26; i++)
-    tmp[i] = 'a' + i;
-  for (int i = 0; i < 500; i++)
-    inode_append(&inode[2], tmp, sizeof(tmp));
+    memset(&dentry, 0, sizeof(dentry));
+    dentry.inode_num = file_num;
+    get_name_from_path(argv[argument], dentry.name);
+    inode_append(&root, &dentry, sizeof(dentry));
+  }
 
   /* step-7: 写回super block和inode */
   sb.magic_num = xint(sb.magic_num);
@@ -277,17 +356,14 @@ int main(int argc, char *argv[])
   memcpy(data_buf, &sb, sizeof(sb));
   block_rw(0, data_buf, true);
 
-  for (int i = 0; i < 3; i++)
-  {
-    inode[i].type = xshort(inode[i].type);
-    inode[i].major = xshort(inode[i].major);
-    inode[i].minor = xshort(inode[i].minor);
-    inode[i].nlink = xshort(inode[i].nlink);
-    inode[i].size = xint(inode[i].size);
-    for (int j = 0; j < INODE_INDEX_3; j++)
-      inode[i].index[j] = xint(inode[i].index[j]);
-    inode_rw(inode_num[i], &inode[i], true);
-  }
+  root.type = xshort(root.type);
+  root.major = xshort(root.major);
+  root.minor = xshort(root.minor);
+  root.nlink = xshort(root.nlink);
+  root.size = xint(root.size);
+  for (int i = 0; i < INODE_INDEX_3; ++i)
+    root.index[i] = xint(root.index[i]);
+  inode_rw(root_num, &root, true);
 
   /* step-8: 关闭磁盘文件 */
   close(disk_fd);

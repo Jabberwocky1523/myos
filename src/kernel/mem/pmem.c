@@ -105,3 +105,16 @@ void pmem_free(uint64 page, bool in_kernel)
   region->allocable++;
   spinlock_release(&region->lock);
 }
+
+/* Snapshot the free-page counts from both allocator regions. */
+void pmem_stat(uint32 *free_pages_in_kernel, uint32 *free_pages_in_user)
+{
+  if (free_pages_in_kernel == NULL || free_pages_in_user == NULL)
+    return;
+  spinlock_acquire(&kern_region.lock);
+  *free_pages_in_kernel = (uint32)kern_region.allocable;
+  spinlock_release(&kern_region.lock);
+  spinlock_acquire(&user_region.lock);
+  *free_pages_in_user = (uint32)user_region.allocable;
+  spinlock_release(&user_region.lock);
+}

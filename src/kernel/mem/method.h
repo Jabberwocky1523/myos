@@ -12,6 +12,7 @@ void pmem_init(void);
 uint64 pmem_alloc(bool in_kernel);
 uint64 pmem_try_alloc(bool in_kernel);
 void pmem_free(uint64 page, bool in_kernel);
+void pmem_stat(uint32 *free_pages_in_kernel, uint32 *free_pages_in_user);
 
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc);
 void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm);
@@ -23,7 +24,8 @@ void vm_print(pgtbl_t pgtbl);
 int uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);
 int uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);
 int uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen);
-uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);
+uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len,
+                     int flag);
 uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);
 int64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage,
                       uint64 fault_addr);

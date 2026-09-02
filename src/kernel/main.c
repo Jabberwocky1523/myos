@@ -28,7 +28,7 @@ int main(void)
     trap_kernel_init();
     trap_kernel_inithart();
     virtio_disk_init();
-    printf("lab8 hart %d ready\n", (int)id);
+    printf("lab9 hart %d ready\n", (int)id);
     proc_make_first();
     __atomic_store_n(&kernel_ready, 1, __ATOMIC_RELEASE);
   }
@@ -38,7 +38,7 @@ int main(void)
       ;
     kvm_inithart();
     trap_kernel_inithart();
-    printf("lab8 hart %d ready\n", (int)id);
+    printf("lab9 hart %d ready\n", (int)id);
   }
   proc_scheduler();
 }

@@ -1,4 +1,5 @@
 #include "method.h"
+#include "../fs/mod.h"
 
 #define UART0 0x10000000UL
 #define RHR 0
@@ -49,13 +50,6 @@ int uart_getc_sync(void)
 void uart_intr(void)
 {
   int c;
-  while ((c = uart_getc_sync()) != -1) {
-    if (c == '\b' || c == 0x7f) {
-      printf("\b \b");
-    } else if (c == '\r' || c == '\n') {
-      printf("\r\n");
-    } else {
-      printf("%c", c);
-    }
-  }
+  while ((c = uart_getc_sync()) != -1)
+    cons_edit(c);
 }

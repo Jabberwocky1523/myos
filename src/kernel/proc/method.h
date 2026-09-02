@@ -27,4 +27,10 @@ cpu_t *mycpu(void);
 proc_t *myproc(void);
 void swtch(context_t *old, context_t *new);
 
+void load_segment(inode_t *ip, pgtbl_t pgtbl, uint64 seg_start,
+                  uint64 va_start, uint32 len);
+uint64 prepare_heap(pgtbl_t new_pgtbl, inode_t *ip, elf_header_t *eh);
+uint64 prepare_stack(pgtbl_t new_pgtbl, char **argv, int *arg_count);
+int proc_exec(char *path, char **argv);
+
 #endif

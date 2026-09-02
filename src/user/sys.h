@@ -36,9 +36,4 @@ static inline long munmap(void *start, unsigned long len)
   return __syscall2(SYS_munmap, (long)start, (long)len);
 }
 
-static inline long user_printf(const char *s)
-{
-  return __syscall1(SYS_print_str, (long)s);
-}
-
 #endif

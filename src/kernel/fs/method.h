@@ -57,10 +57,50 @@ void inode_print(inode_t *ip, char *name);
 uint32 dentry_search(inode_t *ip, char *name);
 int dentry_create(inode_t *ip, uint32 inode_num, char *name);
 uint32 dentry_delete(inode_t *ip, char *name);
+uint32 dentry_search_2(inode_t *ip, uint32 inode_num, char *name);
+int dentry_transmit(inode_t *ip, uint64 dst, uint32 len,
+                    bool is_user_dst);
 void dentry_print(inode_t *ip);
 char *get_element(char *path, char *name);
 inode_t *__path_to_inode(char *path, char *name, bool find_parent_inode);
 inode_t *path_to_inode(char *path);
 inode_t *path_to_parent_inode(char *path, char *name);
+int inode_to_path(inode_t *ip, char *path, uint32 len);
+inode_t *path_create_inode(char *path, uint16 type, uint16 major,
+                           uint16 minor);
+int path_link(char *old_path, char *new_path);
+int path_unlink(char *path);
+
+void file_init(void);
+file_t *file_alloc(void);
+file_t *file_open(char *path, uint32 open_mode);
+void file_close(file_t *file);
+int file_read(file_t *file, uint32 len, uint64 dst, bool is_user_dst);
+int file_write(file_t *file, uint32 len, uint64 src, bool is_user_src);
+int file_lseek(file_t *file, uint32 lseek_offset, uint32 lseek_flag);
+file_t *file_dup(file_t *file);
+int file_get_stat(file_t *file, uint64 user_dst);
+
+uint32 device_stdin_read(uint32 len, uint64 dst, bool is_user_dst);
+uint32 device_stdout_write(uint32 len, uint64 src, bool is_user_src);
+uint32 device_stderr_write(uint32 len, uint64 src, bool is_user_src);
+uint32 device_zero_read(uint32 len, uint64 dst, bool is_user_dst);
+uint32 device_null_read(uint32 len, uint64 dst, bool is_user_dst);
+uint32 device_null_write(uint32 len, uint64 src, bool is_user_src);
+uint32 device_gpt0_write(uint32 len, uint64 src, bool is_user_src);
+void device_register(uint32 index, char *name, device_io_fn_t read,
+                     device_io_fn_t write);
+void device_init(void);
+bool device_open_check(uint16 major, uint32 open_mode);
+uint32 device_read_data(uint16 major, uint32 len, uint64 dst,
+                        bool is_user_dst);
+uint32 device_write_data(uint16 major, uint32 len, uint64 src,
+                         bool is_user_src);
+
+void cons_init(void);
+void cons_putc(int c);
+uint32 cons_write(uint32 len, uint64 src, bool is_user_src);
+uint32 cons_read(uint32 len, uint64 dst, bool is_user_dst);
+void cons_edit(int c);
 
 #endif

@@ -71,10 +71,14 @@ int uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen)
   return -1;
 }
 
-uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
+/* Grow a sequential user region with caller-selected ELF or heap access. */
+uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len,
+                     int flag)
 {
-  if (cur_heap_top < USER_HEAP_BASE || cur_heap_top > MMAP_BEGIN ||
-      (uint64)len > MMAP_BEGIN - cur_heap_top)
+  if (cur_heap_top < USER_BASE || cur_heap_top > MMAP_BEGIN ||
+      (uint64)len > MMAP_BEGIN - cur_heap_top ||
+      (flag & ~(PTE_R | PTE_W | PTE_X)) != 0 ||
+      (flag & (PTE_R | PTE_X)) == 0)
     return (uint64)-1;
   uint64 new_top = cur_heap_top + len;
   uint64 begin = PGROUNDUP(cur_heap_top);
@@ -85,7 +89,7 @@ uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
     uint64 pa = pmem_try_alloc(false);
     if (pa == 0)
       break;
-    vm_mappages(pgtbl, va, pa, PAGE_SIZE, PTE_R | PTE_W | PTE_U);
+    vm_mappages(pgtbl, va, pa, PAGE_SIZE, flag | PTE_U);
   }
   if (va != end)
   {

@@ -1,44 +1,27 @@
 
 #include "sys.h"
 
-#define NUM 20
-#define N_BUFFER 8
-
-int main()
+/* Start one Lab9 test in a child and reap it from the permanent init process. */
+int main(void)
 {
-  unsigned int block_num[NUM];
-  unsigned int inode_num[NUM];
+  char path[] = "./test_4";
+  char arg0[] = "./test_4";
+  char arg1[] = "hello";
+  char arg2[] = "world";
+  char *argv[] = {arg0, arg1, arg2, 0};
+  long pid = syscall(SYS_fork);
 
-  for (int i = 0; i < NUM; i++)
-    block_num[i] = syscall(SYS_alloc_block);
+  if (pid == 0)
+  {
+    if (syscall(SYS_exec, path, argv) == -1)
+      syscall(SYS_exit, 127);
+  }
+  else if (pid > 0)
+  {
+    unsigned int status = 0;
+    syscall(SYS_wait, &status);
+  }
 
-  syscall(SYS_flush_buffer, N_BUFFER);
-  syscall(SYS_show_bitmap, 0);
-
-  for (int i = 0; i < NUM; i += 2)
-    syscall(SYS_free_block, block_num[i]);
-
-  syscall(SYS_flush_buffer, N_BUFFER);
-  syscall(SYS_show_bitmap, 0);
-
-  for (int i = 1; i < NUM; i += 2)
-    syscall(SYS_free_block, block_num[i]);
-
-  syscall(SYS_flush_buffer, N_BUFFER);
-  syscall(SYS_show_bitmap, 0);
-
-  for (int i = 0; i < NUM; i++)
-    inode_num[i] = syscall(SYS_alloc_inode);
-
-  syscall(SYS_flush_buffer, N_BUFFER);
-  syscall(SYS_show_bitmap, 1);
-
-  for (int i = 0; i < NUM; i++)
-    syscall(SYS_free_inode, inode_num[i]);
-
-  syscall(SYS_flush_buffer, N_BUFFER);
-  syscall(SYS_show_bitmap, 1);
-
-  while (1)
-    ;
+  for (;;)
+    asm volatile("nop");
 }
