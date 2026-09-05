@@ -1,2 +1,4 @@
 target/
 kernel-qemu.elf
+pdf/
+ppt/
